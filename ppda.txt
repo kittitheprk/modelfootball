@@ -1,0 +1,46 @@
+1.สร้างชีตสำหรับเตรียมข้อมูลเพื่อทำchatsเปรียบเทียบข้อมูลcompareระหว่างทีม
+2.คำนวนค่าppdaในการเปรียบเทียบสไตล์เกมรับของแต่ละทีม ด้วยข้อมูลของsofa(Opponent Passes / (Fouls + Interceptions + Won Duels + Sliding Tackles))
+3.สร้างวิธีวิเคราะห์คาดการณ์รูปเกม (Game Flow)
+1. calc_PPDA (ค่าความดุดันในการเพรสซิ่ง)
+ความหมาย: ยิ่งค่าน้อย = ยิ่งเพรสซิ่งดุ (คู่แข่งจ่ายบอลได้น้อยครั้งก่อนโดนเราหยุด)
+สูตร (Excel):
+code
+Excel
+= accurateOwnHalfPassesAgainst / (tackles + interceptions + fouls)
+คำอธิบาย: ใช้จำนวนการจ่ายบอลในแดนตัวเองของคู่แข่ง (accurateOwnHalfPassesAgainst) หารด้วย ผลรวมการกระทำเกมรับของเรา (tackles + interceptions + fouls)
+2. calc_OPPDA (ค่าความนิ่งในการแกะเพรสซิ่ง)
+ความหมาย: ยิ่งค่ามาก = ยิ่งแกะเพรสเก่ง (เราจ่ายบอลได้หลายครั้งกว่าคู่แข่งจะแย่งได้)
+สูตร (Excel):
+code
+Excel
+= accurateOwnHalfPasses / (tacklesAgainst + interceptionsAgainst)
+(หมายเหตุ: ในไฟล์ไม่มี foulsAgainst โดยตรง จึงใช้แค่การโดนเข้าปะทะและโดนตัดบอลเป็นตัวหารแทน ซึ่งยังให้ผลลัพธ์ที่ใช้เทียบเคียงได้)
+คำอธิบาย: ใช้จำนวนการจ่ายบอลในแดนตัวเองของเรา (accurateOwnHalfPasses) หารด้วย สิ่งที่คู่แข่งทำใส่เรา (tacklesAgainst + interceptionsAgainst)
+3. calc_FieldTilt_Pct (เปอร์เซ็นต์การครองพื้นที่บุก)
+ความหมาย: วัดว่าเกมส่วนใหญ่เกิดขึ้นในแดนใคร (ถ้า > 50% แปลว่าเราขึงเกมในแดนคู่แข่งได้มากกว่า)
+สูตร (Excel):
+code
+Excel
+= accurateOppositionHalfPasses / (accurateOppositionHalfPasses + accurateOppositionHalfPassesAgainst)
+คำอธิบาย: เอาจำนวนการจ่ายบอลในแดนคู่แข่งของเรา หารด้วย (การจ่ายบอลแดนคู่แข่งของเรา + การจ่ายบอลแดนคู่แข่งของเขา)
+4. calc_HighError_Rate (ความเสี่ยงในการแจกโชค)
+ความหมาย: จำนวนครั้งที่พลาดจนเสียโอกาสยิง/ประตู (ใช้ดูว่ากองหลังรั่วไหม)
+สูตร (Excel):
+code
+Excel
+= errorsLeadingToShot + errorsLeadingToGoal
+คำอธิบาย: รวมผลความผิดพลาดส่วนบุคคลที่นำไปสู่การโดนยิง (errorsLeadingToShot) และเสียประตู (errorsLeadingToGoal)
+5. calc_Directness (สัดส่วนการเล่นบอลยาว)
+ความหมาย: ดูสไตล์การเล่นว่าเป็นทีม "ต่อบอลสั้น" หรือ "บอมบ์ยาว" (ค่าสูง = เล่นบอลยาวเยอะ)
+สูตร (Excel):
+code
+Excel
+= totalLongBalls / totalPasses
+คำอธิบาย: สัดส่วนของบอลยาว (totalLongBalls) เทียบกับการจ่ายบอลทั้งหมด (totalPasses)
+6. calc_BigChance_Diff (ผลต่างโอกาสทอง)
+ความหมาย: คุณภาพการสร้างโอกาสเทียบกับโอกาสที่เสียไป (ค่าบวก = เกมรุกดีกว่าเกมรับ)
+สูตร (Excel):
+code
+Excel
+= bigChances - bigChancesAgainst
+คำอธิบาย: เอาโอกาสทองที่สร้างได้ (bigChances) ลบด้วย โอกาสทองที่คู่แข่งทำได้ (bigChancesAgainst) ตัวนี้ใช้แทน xG Diff ได้ดีในกรณีไม่มีค่า xG

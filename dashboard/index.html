@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Analytics Interactive Dashboard | Advanced Team & Player Analysis</title>
+    <meta name="description"
+        content="Interactive football analytics dashboard for comparing teams and players with advanced metrics and visualizations">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+</head>
+
+<body>
+    <!-- Sidebar Navigation & Filters -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1 class="logo">
+                <span class="logo-icon">⚽</span>
+                <span class="logo-text">Football Analytics</span>
+            </h1>
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <span class="toggle-icon">◀</span>
+            </button>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- Core Filters -->
+            <section class="filter-section">
+                <h2 class="filter-title">Core Filters</h2>
+
+                <div class="filter-group">
+                    <label for="leagueFilter">League</label>
+                    <select id="leagueFilter" class="filter-select" multiple>
+                        <option value="all" selected>All Leagues</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="seasonFilter">Season</label>
+                    <select id="seasonFilter" class="filter-select">
+                        <option value="2024-25">2024/25</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Linked Filter Engine -->
+            <section class="filter-section">
+                <h2 class="filter-title">Filter Engine</h2>
+
+                <div class="filter-group">
+                    <label for="teamSelect">Team Selector (Linked to League)</label>
+                    <div class="comparison-input">
+                        <select id="teamSelect" class="filter-select">
+                            <option value="all">Select a League first...</option>
+                        </select>
+                        <!-- Multi-select display -->
+                        <div class="selected-items" id="selectedTeams"></div>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="playerSelect">Player Selector (Linked to Team)</label>
+                    <div class="comparison-input">
+                        <select id="playerSelect" class="filter-select">
+                            <option value="all">Select a Team first...</option>
+                        </select>
+                        <!-- Multi-select display -->
+                        <div class="selected-items" id="selectedPlayers"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Advanced Data Filters -->
+            <section class="filter-section">
+                <h2 class="filter-title">Advanced Filters</h2>
+
+                <div class="filter-group">
+                    <label for="positionFilter">Position</label>
+                    <select id="positionFilter" class="filter-select" multiple>
+                        <option value="all" selected>All Positions</option>
+                        <option value="FW">Forward</option>
+                        <option value="MF">Midfielder</option>
+                        <option value="DF">Defender</option>
+                        <option value="GK">Goalkeeper</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="minutesFilter">Minutes Played: <span id="minutesValue">0+</span></label>
+                    <input type="range" id="minutesFilter" class="filter-slider" min="0" max="3000" value="0" step="90">
+                </div>
+
+                <div class="filter-group">
+                    <label>Age Range: <span id="ageValue">16-40</span></label>
+                    <div class="range-inputs">
+                        <input type="number" id="ageMin" class="filter-input-small" value="16" min="16" max="45">
+                        <span>to</span>
+                        <input type="number" id="ageMax" class="filter-input-small" value="40" min="16" max="45">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Action Buttons -->
+            <div class="filter-actions">
+                <button class="btn btn-secondary" id="clearAllBtn">Clear All Filters</button>
+                <button class="btn btn-primary" id="exportBtn">Export Data</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h2 class="page-title" id="pageTitle">Team DNA & Tactical Landscape</h2>
+                <div class="header-stats">
+                    <div class="stat-badge">
+                        <span class="stat-label">Teams</span>
+                        <span class="stat-value" id="teamCount">0</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-label">Players</span>
+                        <span class="stat-value" id="playerCount">0</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-label">Leagues</span>
+                        <span class="stat-value" id="leagueCount">0</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="teamDNA">
+                <span class="tab-icon">🎯</span>
+                <span class="tab-label">Team DNA</span>
+            </button>
+            <button class="tab-btn" data-tab="matchAnalysis">
+                <span class="tab-icon">📈</span>
+                <span class="tab-label">Match Analysis</span>
+            </button>
+            <button class="tab-btn" data-tab="teamComparison">
+                <span class="tab-icon">⚔️</span>
+                <span class="tab-label">Team H2H</span>
+            </button>
+            <button class="tab-btn" data-tab="playerScouting">
+                <span class="tab-icon">🔍</span>
+                <span class="tab-label">Player Scouting</span>
+            </button>
+            <button class="tab-btn" data-tab="positional">
+                <span class="tab-icon">📊</span>
+                <span class="tab-label">Positional</span>
+            </button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div class="tab-content active" id="teamDNA">
+            <div class="content-grid">
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Team Tactical Profile</h3>
+                        <div class="card-actions">
+                            <select id="metricFocus" class="metric-selector">
+                                <option value="balanced">Balanced View</option>
+                                <option value="attacking">Attacking Focus</option>
+                                <option value="defensive">Defensive Focus</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="tacticalScatterChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Tackles Ranking</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="ppdaBarChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Ball Possession Leaders</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="fieldTiltChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="tab-content" id="matchAnalysis">
+            <div class="content-grid">
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Tactical Style Analysis (Control vs Direct)</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="controlDirectChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Intensity vs Risk (Defensive Profile)</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="intensityRiskChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Tale of the Tape (Team Comparison)</h3>
+                        <div class="comparison-info">Select exactly 2 teams to view comparison</div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="taleOfTheTapeChart" height="400"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="teamComparison">
+            <div class="content-grid">
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Team Radar Comparison</h3>
+                        <div class="comparison-info" id="comparisonInfo">
+                            Select teams from the sidebar to compare
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="teamRadarChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Detailed Metrics Comparison</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="comparison-table" id="teamComparisonTable"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="playerScouting">
+            <div class="content-grid">
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Creator vs Finisher Matrix</h3>
+                        <button class="btn btn-small" id="similarPlayerBtn">Find Similar Players</button>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="creatorFinisherChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title">Player Profile Comparison</h3>
+                        <div class="comparison-info" id="playerComparisonInfo">
+                            Select players from the sidebar to compare
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="playerRadarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="positional">
+            <div class="content-grid">
+                <div class="chart-card full-width">
+                    <div class="card-header">
+                        <h3 class="card-title" id="positionalTitle">Positional Analysis</h3>
+                        <div class="position-selector">
+                            <div class="position-selector">
+                                <button class="pos-btn active" data-pos="MF">Midfielders</button>
+                                <button class="pos-btn" data-pos="FW">Forwards</button>
+                                <button class="pos-btn" data-pos="DF">Defenders</button>
+                                <button class="pos-btn" data-pos="GK">Goalkeepers</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="positionalChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Top Performers</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="top-performers" id="topPerformers"></div>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Performance Distribution</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading football data...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

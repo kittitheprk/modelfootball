@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!-- saved from url=(1480)https://onetag-sys.com/usync/?cb=1770553473479&gdpr=0&gpp_consent=DBACOe~CQfTjQAQfTjQAEXwnATHCOFgAP_gAEPgACY4J7tRuG__bWFr8TL3afpkeYxP99hr7sQxBgbJE24FyLvW7JwXx2ExNAzStqIKmRIAu3RBIQFlHJDURFCgKIgVLyDMYECUgSNKJ6BkgFMRI2NYCFxPmQtjWQCY4vp9c1dxmDeN7dr82dzyw4BHn3YpfmS0UJCdAYctDfv8ZBKT-9IEd_x8v4vw_EbpE2-eSVh_tGvp4B8-YtM7dAEwoQCCAAgoOAGYaFRAEWRAAEGgYAQIAFBWEAFAgAAABIGiAgBIGBTsDAJdYSIAQAIABggBAACjIAEAAAkACEQAQAEAgAAgECgAAAAAAAgAYGAAMAFgIBAACA6BCmBBAIFgAkZgRCmBAAAkEBLZUIJAECCuEARY4AEAiJgoAAAQACgAAAFgsBCSQErEggC4gmgAAIAAAggAKEUjRgCCAM0WijEAAAIAAAAIAAAA.IKDtRuG__bXFv8TL36fpkeYxf99hr7sQxBgbJs24FyLvW7JwX32EzNEzStqYKmRIAu3RBIQFtHJjURFChKIgVLzDsYECUgSNKJ-BkgHMRY2NYCFxPmQtjWQCZ4vp_c1d5mTeN7dr-2dzyw5Bnv3YtfuS1UJidKYctHfv8ZBKT-_IU9_x-_4vw_MbpE2-eSVp_tGvt418-4tP_dosxoQCCAAgACAA~BQfTjQAQfTjQAEXwnATHCOFAAf_AAIfAAAnu1G4b_9tYWvxMvdp-mR5jE_32GvuxDEGBskTbgXIu9bsnBfHYTE0DNK2ogqZEgC7dEEhAWUckNREUKAoiBUvIMxgQJSBI0onoGSAUxEjY1gIXE-ZC2NZAJji-n1zV3GYN43t2vzZ3PLDgEefdil-ZLRQkJ0Bhy0N-_xkEpP70gR3_Hy_i_D8RukTb55JWH-0a-ngHz5i0zt0ATChAIIACCg4AZhoVEARZEAAQaBgBAgAUFYQAUCAAAAEgaICAEgYFOwMAl1hIgBAAgAGCAEAAKMgAQAACQAIRABAAQCAACAQKAAAAAAACABgYAAwAWAgEAAIDoEKYEEAgWACRmBEKYEAACQQEtlQgkAQIK4QBFjgAQCImCgAABAAKAAAAWCwEJJASsSCALiCaAAAgAACCAAoRSNGAIIAzRaKMQAAAgAAAAgAA.IKDtRuG__bXFv8TL36fpkeYxf99hr7sQxBgbJs24FyLvW7JwX32EzNEzStqYKmRIAu3RBIQFtHJjURFChKIgVLzDsYECUgSNKJ-BkgHMRY2NYCFxPmQtjWQCZ4vp_c1d5mTeN7dr-2dzyw5Bnv3YtfuS1UJidKYctHfv8ZBKT-_IU9_x-_4vw_MbpE2-eSVp_tGvt418-4tP_dosxoQCCAAgACA~1-%2D-&us_privacy=1-%2D- -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>Sync Pixels</title>
+</head>
+<body marginwidth="0" marginheight="0">
+
+<script>
+
+    if (!String.prototype.replaceAll) {
+        String.prototype.replaceAll = function(search, replace) {
+            const escapedSearchValue = search.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedSearchValue, 'g');
+            return this.replace(regex, replace);
+        };
+    }
+
+    var syncPixels = "https://rtb.mfadsrvr.com/sync?ssp=onetag&ssp_user_id=6jTe5ZKNDNRtT7vMrV8YpW-WUcj6_NN4Amlu2CL74Hw&gdpr=${GDPR}&gdpr_consent=${GDPR_STRING} http://user-sync.fwmrm.net/ad/u?mode=echo&cr=https%3A%2F%2Fonetag-sys.com%2Fmatch%2F%3Fint_id%3D3%26gdpr%3D${GDPR}%26gdpr_consent%3D${GDPR_STRING}%26uid%3D#{user.id} https://pixel.rubiconproject.com/tap.php?v=223352&nid=4584&put=6jTe5ZKNDNRtT7vMrV8YpW-WUcj6_NN4Amlu2CL74Hw https://onetag-sys.com/match/?int_id=106&redir=1&ot_initiated=1&gdpr=${GDPR}&gdpr_consent=${GDPR_STRING} https://onetag-sys.com/match/?int_id=113&gdpr=${GDPR}&gdpr_consent=${GDPR_STRING}&callback=https%3A%2F%2Fs.amazon-adsystem.com%2Fecm3%3Fex%3Donetag.com%26id%3D%24%7BUSER_TOKEN%7D&ot_initiated=1";
+    var syncIframes = "";
+
+    var GDPR_APPLIES = "gdpr=";
+    var GDPR = "gdpr_consent=";
+    var US_PRIVACY = "us_privacy=";
+
+
+    var params = location.search.substring(1);
+    var consentString = "";
+    var usPrivacy = "";
+    var gdprAppliesValue = "1";
+
+    try {
+
+        var index = params.indexOf(GDPR);
+        if (index >= 0) {
+            consentString = params.substring(index + GDPR.length).split("&")[0];
+        }
+
+        index = params.indexOf(GDPR_APPLIES);
+        if (index >= 0) {
+            var tmp = params.substring(index + GDPR_APPLIES.length).split("&")[0];
+            gdprAppliesValue = (tmp == null || tmp === "" || tmp === "1") ? "1" : "0";
+        }
+
+        index = params.indexOf(US_PRIVACY);
+        if (index >= 0) {
+            usPrivacy = params.substring(index + US_PRIVACY.length).split("&")[0];
+        }
+
+    } catch (e) {
+        console.log("Can't detect gdpr consent string");
+    }
+
+    if (syncPixels) {
+
+        var sync = syncPixels.split(" ");
+        if (sync != null) {
+            sync.forEach(function(url) {
+
+                url = url.replaceAll("${GDPR}",gdprAppliesValue);
+                url = url.replaceAll("${GDPR_STRING}", consentString);
+                url = url.replaceAll("${US_PRIVACY}", usPrivacy);
+
+                new Image().src = url;
+
+            });
+        }
+    }
+
+    if (syncIframes) {
+
+        var syncF = syncIframes.split(",");
+        if (syncF != null) {
+            syncF.forEach(function(url) {
+
+                url = url.replaceAll("${GDPR}",gdprAppliesValue);
+                url = url.replaceAll("${GDPR_STRING}", consentString);
+                url = url.replaceAll("${US_PRIVACY}", usPrivacy);
+
+                var iframe = document.createElement("iframe");
+                iframe.src = url;
+                iframe.style.display = "none";
+                iframe.style.width = "0px";
+                iframe.style.height = "0px";
+                document.body.appendChild(iframe);
+
+            });
+        }
+    }
+
+</script>
+
+
+</body></html>
