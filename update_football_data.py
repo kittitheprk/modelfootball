@@ -10,14 +10,12 @@ import os
 SCRIPTS_TO_RUN = [
     (r"all stats\scrape_all_stats.py", "Scraping Base League Stats..."),
     (r"sofascore_team_data\scrape_sofascore.py", "Scraping SofaScore Team Data..."),
-    (r"scrape_heatmaps.py", "Scraping Player Season Heatmaps..."),
     (r"scrape_sofaplayer.py", "Scraping Detailed Player Season Stats..."),
     (r"create_game_flow.py", "Calculating Game Flow Metrics..."),
     (r"all stats\scrape_detailed_stats.py", "Scraping Detailed Stats (Shooting, Passing, etc.)..."),
     (r"Match Logs\scrape_match_logs.py", "Scraping Match Logs..."),
     (r"charts\process_chart_data.py", "Processing Data for Charts..."),
-    (r"charts\create_long_format_data.py", "Creating Final Long Format Data (Excel)..."),
-    (r"prepare_dashboard_data.py", "Updating Dashboard Data (data.json)...")
+    (r"charts\create_long_format_data.py", "Creating Final Long Format Data (Excel)...")
 ]
 
 class ScraperApp:
@@ -145,4 +143,8 @@ class ScraperApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = ScraperApp(root)
+    
+    if "--auto-start" in sys.argv:
+        root.after(1000, app.start_pipeline)
+        
     root.mainloop()

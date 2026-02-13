@@ -10,7 +10,7 @@ import visualizer
 # Force UTF-8 output
 sys.stdout.reconfigure(encoding='utf-8')
 
-API_KEY = "AIzaSyBuBznv-XRM-Q7ThdTq_dlO8Z78UyN3r60"
+API_KEY = "AIzaSyAIkLd916V-iQua89t3stHYtkwOLBXu8Us"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
 
 def load_team_stats(league):

@@ -1,26 +1,17 @@
-**PRE-MATCH STATUS: CONFIRMED LINEUPS**
-**Liverpool vs Manchester City (Anfield)**
-*   **Kickoff:** 23:30 Today
-*   **Standings:** Man City 2nd (47 pts, form: DDLWD), Liverpool 6th (39 pts, form: DDDLW).
-*   **Avg Rating Prediction:** City (6.99) slightly favored over Liverpool (6.87).
+Match: Atlético Madrid vs Barcelona
+Date: 2026-02-13
+League: La Liga
 
-**Confirmed Lineups:**
-*   **Liverpool (4-2-3-1):**
-    *   **GK:** Alisson (6.82)
-    *   **DEF:** Kerkez, Van Dijk (7.29 - Highest Rated LFC), Konaté, Szoboszlai (playing RB/RWB? odd position).
-    *   **MID:** Mac Allister, Gravenberch (7.10).
-    *   **ATT:** Gakpo, **Wirtz (New Signing?)**, Salah.
-    *   **ST:** Ekitiké (6.94).
-    *   *Note:* Using Szoboszlai as a RB/WB is a huge tactical gamble or misunderstanding of the graphic (he is listed as #8 alongside defenders). Let's assume Alexander-Arnold is out. Wirtz is starting!
+Lineups:
+Atlético Madrid (Home) - 4-4-2:
+GK: 1 J. Musso
+DEF: 14 M. Llorente, 18 Pubill, 17 D. Hancko, 3 M. Ruggeri
+MID: 20 G. Simeone, 4 R. Mendoza, 6 Koke, 22 A. Lookman
+FWD: 7 A. Griezmann, 19 J. Álvarez
 
-*   **Man City (4-3-3):**
-    *   **GK:** Donnarumma (7.01).
-    *   **DEF:** Nouri, Guehi, Khusanov, Nunes (Inverted FB?).
-    *   **MID:** Bernardo Silva, Rodri (7.35 - Highest Rated City), O'Reilly.
-    *   **ATT:** Semenyo, **Haaland (7.42 - Machine)**, Marmoush.
-    *   *Note:* City's defense looks very rotated (Nouri, Khusanov, Guehi). Marmoush and Semenyo starting on wings.
-
-**Key Observations:**
-*   **Liverpool's Defense:** Szoboszlai at Right Back? This is a target for City's left winger (Marmoush).
-*   **City's Defence:** Very new look back line (Khusanov/Guehi pairing). Can Solah exploit this?
-*   **Midfield:** Rodri vs Mac Allister/Gravenberch will decide the game.
+Barcelona (Away) - 4-2-3-1:
+GK: 13 J. García
+DEF: 23 J. Koundé, 5 P. Cubarsí, 24 E. García, 3 A. Balde
+MID: 21 F. de Jong, 22 M. Bernal
+ATT: 16 F. López, 10 L. Yamal, 20 D. Olmo
+FWD: 7 F. Torres

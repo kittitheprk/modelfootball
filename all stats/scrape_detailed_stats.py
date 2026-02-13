@@ -5,8 +5,7 @@ import os
 import random
 from io import StringIO
 from tqdm import tqdm
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
 
 # Configuration
 OUTPUT_DIR = "all stats"
@@ -33,26 +32,12 @@ CATEGORIES = {
     "Miscellaneous Stats": "misc"
 }
 
-# Selenium Setup
+# Undetected ChromeDriver Setup (bypasses Cloudflare)
 def setup_driver():
-    options = Options()
-    # options.add_argument("--headless") # Run in headless mode (optional, good for automation)
+    options = uc.ChromeOptions()
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    driver = webdriver.Chrome(options=options)
-    
-    # Hide selenium detection
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        """
-    })
+    driver = uc.Chrome(options=options, version_main=144)
     return driver
 
 def get_soup(driver, url):
