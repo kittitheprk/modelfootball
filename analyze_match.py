@@ -265,6 +265,11 @@ def main():
         *   **3 สกอร์ที่โมเดลเชื่อมั่นสูงสุด:** {sim['top3_scores']}
         *   **Bonus Applied:** {sim['bonus_applied']} (Boost for Superior Team)
         *   **ความมั่นใจ:** {confidence}
+
+        **มุมมองการลงทุน (Betting Markets):**
+        *   **Handicap:** {sim['handicap_probs']}
+        *   **Over/Under:** {sim['ou_probs']}
+        *   **BTTS (ยิงทั้งคู่):** {sim['btts_prob']:.1f}%
         
         **สถิติเชิงลึก (Dual Data Sources - 10 นัดล่าสุด):**
         *   **{home}:** xG For {h_xg['attack']['xg_per_game']:.2f}/เกม | xGA {h_xg['defense']['xga_per_game']:.2f}/เกม | Goals/90: {safe_fmt(h_sim.get('goals_scored_per_game', 'N/A') if h_sim else 'N/A')} | Conceded/90: {safe_fmt(h_sim.get('goals_conceded_per_game', 'N/A') if h_sim else 'N/A')}
@@ -326,6 +331,17 @@ def main():
     3.  **ตัวทีเด็ด (X-Factor):**
         *   ผู้เล่นที่อาจเป็นตัวตัดสินเกม (Game Changer)
 
+    ================================================================================
+    **ส่วนที่ 3: มุมมองการลงทุน (Betting Insight)**
+    *วิเคราะห์โอกาสชนะในตลาดต่างๆ จากข้อมูล Simulation*
+    ================================================================================
+    1.  **Handicap Analysis:**
+        *   วิเคราะห์โอกาสชนะราคาแฮนดิแคป (จากค่า % ที่คำนวณได้) ว่าใครน่าเชียร์กว่า
+    2.  **Goals Market (Over/Under & BTTS):**
+        *   วิเคราะห์โอกาสเกิดสกอร์สูง/ต่ำ และโอกาสยิงทั้งสองฝั่ง (BTTS)
+    3.  **คำแนะนำการลงทุน (Betting Recommendation):**
+        *   เลือก 1-2 ตัวเลือกที่ "คุ้มค่าที่สุด" (Value Bet) จากข้อมูลที่มี (เช่น "แนะนำต่อ Leverkusen -1.5" หรือ "สกอร์สูง 2.5")
+
     **Tone:** มืออาชีพ, ลึกซึ้ง, ใช้ภาษาฟุตบอลที่สละสลวย
     """
 
@@ -377,7 +393,10 @@ def main():
                 "Pred_Draw": sim['draw_prob'],
                 "Pred_Away_Win": sim['away_win_prob'],
                 "Pred_Score": sim['most_likely_score'],
-                "Pred_Result": pred_res
+                "Pred_Result": pred_res,
+                "Pred_Handicap": str(sim.get('handicap_probs', '{}')),
+                "Pred_OU": str(sim.get('ou_probs', '{}')),
+                "Pred_BTTS": sim.get('btts_prob', 0)
             }
             
             with open("latest_prediction.json", "w", encoding='utf-8') as f:

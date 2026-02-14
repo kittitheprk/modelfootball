@@ -1,12 +1,15 @@
 {
-    "Date": "2026-02-12",
-    "Match": "Atlético Madrid vs Barcelona",
-    "League": "La_Liga",
-    "Home_Team": "Atlético Madrid",
-    "Away_Team": "Barcelona",
-    "Pred_Home_Win": 31.580000000000002,
-    "Pred_Draw": 22.509999999999998,
-    "Pred_Away_Win": 45.910000000000004,
+    "Date": "2026-02-15",
+    "Match": "Inter vs Juventus",
+    "League": "Serie_A",
+    "Home_Team": "Inter",
+    "Away_Team": "Juventus",
+    "Pred_Home_Win": 45.57,
+    "Pred_Draw": 23.95,
+    "Pred_Away_Win": 30.48,
     "Pred_Score": "1-1",
-    "Pred_Result": "Away"
+    "Pred_Result": "Home",
+    "Pred_Handicap": "{'Home -1.5': 23.1, 'Home -0.5': 45.57, 'Home 0.5': 69.52000000000001, 'Home 1.5': 87.66000000000001}",
+    "Pred_OU": "{'Over 1.5': 77.66, 'Over 2.5': 54.67999999999999, 'Over 3.5': 32.45}",
+    "Pred_BTTS": 57.06
 }

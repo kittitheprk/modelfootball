@@ -76,7 +76,36 @@ def simulate_match(home_xg, away_xg, home_sofascore=None, away_sofascore=None, i
     draw_prob = (draws / iterations) * 100
     away_win_prob = (away_wins / iterations) * 100
     
-    # Most likely score
+    # --- Betting Markets Analysis ---
+    
+    # 1. Asian Handicap
+    # Calculate probability of Home winning with various handicaps
+    # We simulate common lines: -1.5, -0.5, +0.5, +1.5
+    
+    diff = home_goals_sim - away_goals_sim
+    
+    handicaps = [-1.5, -0.5, 0.5, 1.5]
+    handicap_probs = {}
+    
+    for h in handicaps:
+        # For home handicap -1.5: Home goals - 1.5 > Away goals
+        # Equivalent to: diff > 1.5
+        win_prob = np.sum(diff > -h) / iterations * 100
+        handicap_probs[f"Home {h}"] = win_prob
+        
+    # 2. Over/Under Goals
+    total_goals_sim = home_goals_sim + away_goals_sim
+    ou_lines = [1.5, 2.5, 3.5]
+    ou_probs = {}
+    
+    for line in ou_lines:
+        over_prob = np.sum(total_goals_sim > line) / iterations * 100
+        ou_probs[f"Over {line}"] = over_prob
+        
+    # 3. Both Teams To Score (BTTS)
+    btts_count = np.sum((home_goals_sim > 0) & (away_goals_sim > 0))
+    btts_prob = (btts_count / iterations) * 100
+    
     results = list(zip(home_goals_sim, away_goals_sim))
     most_common = Counter(results).most_common(1)[0][0]
     
@@ -94,14 +123,17 @@ def simulate_match(home_xg, away_xg, home_sofascore=None, away_sofascore=None, i
         "top3_scores": top3_str,
         "base_exp_home": base_home, # For debug
         "base_exp_away": base_away, # For debug
-        "bonus_applied": f"Home x{winner_bonus_home} | Away x{winner_bonus_away}"
+        "bonus_applied": f"Home x{winner_bonus_home} | Away x{winner_bonus_away}",
+        "handicap_probs": handicap_probs,
+        "ou_probs": ou_probs,
+        "btts_prob": btts_prob
     }
 
 
 if __name__ == "__main__":
     # === BACKTEST against known matches ===
     print("=" * 60)
-    print("SIMULATOR v7.0 (Winner Mentality) — BACKTEST RESULTS")
+    print("SIMULATOR v7.5 (Betting Markets) — BACKTEST RESULTS")
     print("=" * 60)
     
     test_matches = [

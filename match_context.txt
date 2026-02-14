@@ -1,17 +1,18 @@
-Match: Atlético Madrid vs Barcelona
-Date: 2026-02-13
-League: La Liga
+Match: Inter vs Juventus
+Date: 2026-02-14
+League: Serie A
 
-Lineups:
-Atlético Madrid (Home) - 4-4-2:
-GK: 1 J. Musso
-DEF: 14 M. Llorente, 18 Pubill, 17 D. Hancko, 3 M. Ruggeri
-MID: 20 G. Simeone, 4 R. Mendoza, 6 Koke, 22 A. Lookman
-FWD: 7 A. Griezmann, 19 J. Álvarez
+Home Team: Inter (3-5-2)
+GK: Y. Sommer
+DEF: Bisseck, Akanji, Bastoni
+MID: L. Henrique, Barella, Çalhanoğlu, Zieliński, Dimarco
+FWD: L. Martínez, M. Thuram
 
-Barcelona (Away) - 4-2-3-1:
-GK: 13 J. García
-DEF: 23 J. Koundé, 5 P. Cubarsí, 24 E. García, 3 A. Balde
-MID: 21 F. de Jong, 22 M. Bernal
-ATT: 16 F. López, 10 L. Yamal, 20 D. Olmo
-FWD: 7 F. Torres
+Away Team: Juventus (3-4-2-1)
+GK: Di Gregorio
+DEF: Kalulu, Bremer, Kelly
+MID: McKennie, Locatelli, K. Thuram, Cambiaso
+AM: Conceição, Yıldız
+FWD: J. David
+
+Notes: Derby d'Italia. Inter (1st) vs Juventus (4th). Inter on 12-game unbeaten run. First meeting on Valentine's Day since 1930.
