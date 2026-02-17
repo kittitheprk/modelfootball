@@ -1,15 +1,108 @@
 {
-    "Date": "2026-02-15",
-    "Match": "Inter vs Juventus",
+    "Date": "2026-02-16",
+    "Match": "Cagliari vs Lecce",
+    "Match_Canonical": "Cagliari vs Lecce",
     "League": "Serie_A",
-    "Home_Team": "Inter",
-    "Away_Team": "Juventus",
-    "Pred_Home_Win": 45.57,
-    "Pred_Draw": 23.95,
-    "Pred_Away_Win": 30.48,
-    "Pred_Score": "1-1",
+    "Home_Team": "Cagliari",
+    "Away_Team": "Lecce",
+    "Home_Team_Canonical": "Cagliari",
+    "Away_Team_Canonical": "Lecce",
+    "Pred_Home_Win": 40.008377409149396,
+    "Pred_Draw": 29.954455304651972,
+    "Pred_Away_Win": 30.037167286198613,
+    "Pred_Score": "1-0",
     "Pred_Result": "Home",
-    "Pred_Handicap": "{'Home -1.5': 23.1, 'Home -0.5': 45.57, 'Home 0.5': 69.52000000000001, 'Home 1.5': 87.66000000000001}",
-    "Pred_OU": "{'Over 1.5': 77.66, 'Over 2.5': 54.67999999999999, 'Over 3.5': 32.45}",
-    "Pred_BTTS": 57.06
+    "Pred_Score_Unconditional": "1-1",
+    "Pred_Result_1X2": "Home",
+    "Pred_Result_From_Score": "Home",
+    "Pred_Aligned_Score_Prob": 11.95240248859939,
+    "Model_Version": "v9",
+    "QC_Flags": [
+        "Context league header 'SerieA' differs from detected league 'Serie_A'."
+    ],
+    "Context_Header": {
+        "match": "Cagliari vs Lecce",
+        "date": "2026-02-16",
+        "league": "SerieA"
+    },
+    "Bet_Data": {
+        "HDP_-3": 0.018587165954368115,
+        "HDP_-2": 0.06542079440923022,
+        "HDP_-1": 0.18598897965639835,
+        "HDP_0": 0.41183045003319724,
+        "HDP_1": 0.6878795014195465,
+        "HDP_2": 0.877880859279935,
+        "HDP_3": 0.9632181298172604,
+        "Over_0.5": 0.9075858835253856,
+        "Under_0.5": 0.09241275634418361,
+        "Over_1.5": 0.6875058049288475,
+        "Under_1.5": 0.3124928349407219,
+        "Over_2.5": 0.425446523769299,
+        "Under_2.5": 0.5745521161002699,
+        "Over_3.5": 0.2174159824021043,
+        "Under_3.5": 0.782582657467465
+    },
+    "Bet_Detail": {
+        "HDP_-3": {
+            "win": 0.018587165954368115,
+            "push": 0.046833628454862115,
+            "loss": 0.9345778454603392
+        },
+        "HDP_-2": {
+            "win": 0.06542079440923022,
+            "push": 0.1205681852471681,
+            "loss": 0.814009660213171
+        },
+        "HDP_-1": {
+            "win": 0.18598897965639835,
+            "push": 0.22584147037679908,
+            "loss": 0.5881681898363719
+        },
+        "HDP_0": {
+            "win": 0.41183045003319724,
+            "push": 0.27604905138634894,
+            "loss": 0.3121191384500227
+        },
+        "HDP_1": {
+            "win": 0.6878795014195465,
+            "push": 0.1900013578603886,
+            "loss": 0.1221177805896343
+        },
+        "HDP_2": {
+            "win": 0.877880859279935,
+            "push": 0.08533727053732551,
+            "loss": 0.036780510052308764
+        },
+        "HDP_3": {
+            "win": 0.9632181298172604,
+            "push": 0.02788796612348936,
+            "loss": 0.008892543928819418
+        }
+    },
+    "Progression_Data": {
+        "home": {
+            "xt_proxy": 0.3908846132718434,
+            "deep_completion_proxy": 3.3954166666666667,
+            "progressive_runs_proxy": 3.9358333333333335,
+            "u_shape_risk": 0.4388844463624533,
+            "counter_punch_index": 0.23369581718506166,
+            "prg_pass_dist": 115.70833333333333,
+            "prg_carry_dist": 5.58,
+            "source": "team_stats_fallback"
+        },
+        "away": {
+            "xt_proxy": 0.3825828828475718,
+            "deep_completion_proxy": 2.388333333333333,
+            "progressive_runs_proxy": 3.4116666666666666,
+            "u_shape_risk": 0.5589447934839848,
+            "counter_punch_index": 0.1325487883908784,
+            "prg_pass_dist": 134.41666666666666,
+            "prg_carry_dist": 5.54,
+            "source": "team_stats_fallback"
+        }
+    },
+    "AI_Report_Generated": false,
+    "AI_Report_Path": null,
+    "AI_Report_Error": "gemini_http_429: {   \"error\": {     \"code\": 429,     \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your cur...",
+    "Gemini_Key_Source": "file:gemini_key.txt"
 }
