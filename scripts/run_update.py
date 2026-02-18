@@ -1,121 +1,40 @@
 import argparse
-import subprocess
 import sys
-import time
 from pathlib import Path
 
-# Force UTF-8 for stdout to handle Thai characters
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-# Script paths are relative to project root
-SCRIPTS_TO_RUN = [
-    ("all stats/scrape_all_stats.py", "Scraping Base League Stats..."),
-    ("sofascore_team_data/scrape_sofascore.py", "Scraping SofaScore Team Data..."),
-    ("scripts/scrape_heatmaps.py", "Scraping Player Season Heatmaps..."),
-    ("scripts/scrape_sofaplayer.py", "Scraping Detailed Player Season Stats..."),
-    ("scripts/create_game_flow.py", "Calculating Game Flow Metrics..."),
-    ("all stats/scrape_detailed_stats.py", "Scraping Detailed Stats (Shooting, Passing, etc.)..."),
-    ("Match Logs/scrape_match_logs.py", "Scraping Match Logs..."),
-    ("charts/process_chart_data.py", "Processing Data for Charts..."),
-    ("charts/create_long_format_data.py", "Creating Final Long Format Data (Excel)..."),
-    ("scripts/prepare_dashboard_data.py", "Updating Dashboard Data (data.json)..."),
-]
+import update_football_data as main_pipeline
 
 
 def resolve_step_path(relative_script_path, project_root=PROJECT_ROOT):
-    return (project_root / Path(relative_script_path)).resolve()
+    return main_pipeline.resolve_step_path(relative_script_path, project_root=project_root)
 
 
-def get_missing_scripts(steps=SCRIPTS_TO_RUN, project_root=PROJECT_ROOT):
-    missing = []
-    for rel_path, description in steps:
-        script_path = resolve_step_path(rel_path, project_root=project_root)
-        if not script_path.exists():
-            missing.append((rel_path, str(script_path), description))
-    return missing
+def build_steps(include_active=False):
+    return main_pipeline.build_steps(include_active=include_active)
 
 
-def run_single_script(script_path, description, cwd):
-    start = time.time()
-    process = subprocess.Popen(
-        [sys.executable, "-u", str(script_path)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        universal_newlines=True,
-        cwd=str(cwd),
-        bufsize=1,
+def get_missing_scripts(steps=None, project_root=PROJECT_ROOT):
+    return main_pipeline.get_missing_scripts(steps=steps, project_root=project_root)
+
+
+def run_scripts(continue_on_error=False, dry_run=False, preflight_only=False, include_active=False):
+    return main_pipeline.run_pipeline(
+        continue_on_error=continue_on_error,
+        dry_run=dry_run,
+        preflight_only=preflight_only,
+        include_active=include_active,
+        project_root=PROJECT_ROOT,
+        log_callback=print,
     )
-    if process.stdout is not None:
-        for line in process.stdout:
-            print(f"  > {line}", end="")
-    process.wait()
-    return process.returncode, time.time() - start
-
-
-def run_scripts(continue_on_error=False, dry_run=False, preflight_only=False):
-    print("=== Starting Headless Automation Pipeline ===")
-    print(f"Project Root: {PROJECT_ROOT}")
-    print(f"Start Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    missing = get_missing_scripts()
-    if missing:
-        print("\n[Preflight] Missing scripts detected:")
-        for rel_path, abs_path, description in missing:
-            print(f"  - {rel_path} ({description})")
-            print(f"    Expected at: {abs_path}")
-        print("\nPreflight failed.")
-        return 2
-
-    print(f"\n[Preflight] OK: {len(SCRIPTS_TO_RUN)} scripts found.")
-
-    if dry_run:
-        print("\n[Dry Run] Pipeline steps:")
-        for idx, (rel_path, description) in enumerate(SCRIPTS_TO_RUN, start=1):
-            print(f"  {idx:02d}. {description} -> {rel_path}")
-        return 0
-
-    if preflight_only:
-        return 0
-
-    results = []
-    total = len(SCRIPTS_TO_RUN)
-    for index, (script_rel_path, description) in enumerate(SCRIPTS_TO_RUN, start=1):
-        script_path = resolve_step_path(script_rel_path)
-        print(f"\n[{index}/{total}] {description}")
-        print(f"Script: {script_path}")
-        try:
-            returncode, duration = run_single_script(script_path, description, cwd=PROJECT_ROOT)
-        except KeyboardInterrupt:
-            print("\nPipeline interrupted by user.")
-            return 130
-        except Exception as exc:
-            print(f"[!] Exception while running {script_rel_path}: {exc}")
-            returncode = 1
-            duration = 0.0
-
-        ok = returncode == 0
-        status = "OK" if ok else "FAILED"
-        print(f"  [{status}] exit={returncode} time={duration:.1f}s")
-        results.append((script_rel_path, description, returncode, duration))
-        if not ok and not continue_on_error:
-            print("\nStopping pipeline due to failure (use --continue-on-error to keep going).")
-            break
-
-    ok_count = sum(1 for _, _, code, _ in results if code == 0)
-    fail_count = len(results) - ok_count
-    print("\n=== Pipeline Summary ===")
-    print(f"Completed Steps: {len(results)}/{len(SCRIPTS_TO_RUN)}")
-    print(f"Successful: {ok_count}")
-    print(f"Failed: {fail_count}")
-    print(f"End Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    return 0 if fail_count == 0 and len(results) == len(SCRIPTS_TO_RUN) else 1
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Headless data update pipeline")
+    parser = argparse.ArgumentParser(description="Headless data update pipeline (wrapper)")
     parser.add_argument(
         "--continue-on-error",
         action="store_true",
@@ -131,14 +50,21 @@ def parse_args():
         action="store_true",
         help="Validate required scripts and exit.",
     )
+    parser.add_argument(
+        "--include-active",
+        action="store_true",
+        help="Run derived/converted ACTIVE scripts after RAW scraping.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    exit_code = run_scripts(
-        continue_on_error=args.continue_on_error,
-        dry_run=args.dry_run,
-        preflight_only=args.preflight_only,
+    raise SystemExit(
+        run_scripts(
+            continue_on_error=args.continue_on_error,
+            dry_run=args.dry_run,
+            preflight_only=args.preflight_only,
+            include_active=args.include_active,
+        )
     )
-    sys.exit(exit_code)

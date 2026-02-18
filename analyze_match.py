@@ -91,6 +91,28 @@ def _find_team_row(df, team_col, team_name):
     return None
 
 
+def _to_number(value):
+    try:
+        num = float(value)
+    except Exception:
+        return None
+    if pd.isna(num):
+        return None
+    return num
+
+
+def _per90_from_row(row, per90_key, raw_key, default=0.0):
+    per90_val = _to_number(row.get(per90_key))
+    if per90_val is not None:
+        return per90_val
+
+    raw_val = _to_number(row.get(raw_key))
+    matches_played = _to_number(row.get("Matches_Played"))
+    if raw_val is None or matches_played is None or matches_played <= 0:
+        return default
+    return raw_val / matches_played
+
+
 def find_team_league(team_name):
     base = Path("sofaplayer")
     if not base.exists():
@@ -115,9 +137,11 @@ def get_simulation_stats(team_name, league):
         row = _find_team_row(df, "Team_Name", team_name)
         if row is None:
             return None
+        goals_scored_p90 = _per90_from_row(row, "goalsScored_per_90", "goalsScored", default=0.0)
+        goals_conceded_p90 = _per90_from_row(row, "goalsConceded_per_90", "goalsConceded", default=0.0)
         return {
-            "goals_scored_per_game": float(row.get("goalsScored_per_90", 0.0)),
-            "goals_conceded_per_game": float(row.get("goalsConceded_per_90", 0.0)),
+            "goals_scored_per_game": float(goals_scored_p90),
+            "goals_conceded_per_game": float(goals_conceded_p90),
         }
     except Exception:
         return None
@@ -132,15 +156,18 @@ def get_progression_stats(team_name, league):
         row = _find_team_row(df, "Team_Name", team_name)
         if row is None:
             return {}
-        matches = max(1.0, float(row.get("Matches_Played", 1)))
-        opp_half_passes_p90 = float(row.get("accurateOppositionHalfPasses", 0.0)) / matches
-        dribbles_p90 = float(row.get("successfulDribbles_per_90", row.get("successfulDribbles", 0.0) / matches))
-        big_created_p90 = float(row.get("bigChancesCreated", 0.0)) / matches
-        inside_box_shots_p90 = float(row.get("shotsFromInsideTheBox", 0.0)) / matches
-        fast_breaks_p90 = float(row.get("fastBreaks", 0.0)) / matches
-        corners_p90 = float(row.get("corners", 0.0)) / matches
-        shots_on_target_p90 = float(row.get("shotsOnTarget", 0.0)) / matches
-        long_balls_p90 = float(row.get("accurateLongBalls", 0.0)) / matches
+        opp_half_passes_p90 = _per90_from_row(
+            row, "accurateOppositionHalfPasses_per_90", "accurateOppositionHalfPasses", default=0.0
+        )
+        dribbles_p90 = _per90_from_row(row, "successfulDribbles_per_90", "successfulDribbles", default=0.0)
+        big_created_p90 = _per90_from_row(row, "bigChancesCreated_per_90", "bigChancesCreated", default=0.0)
+        inside_box_shots_p90 = _per90_from_row(
+            row, "shotsFromInsideTheBox_per_90", "shotsFromInsideTheBox", default=0.0
+        )
+        fast_breaks_p90 = _per90_from_row(row, "fastBreaks_per_90", "fastBreaks", default=0.0)
+        corners_p90 = _per90_from_row(row, "corners_per_90", "corners", default=0.0)
+        shots_on_target_p90 = _per90_from_row(row, "shotsOnTarget_per_90", "shotsOnTarget", default=0.0)
+        long_balls_p90 = _per90_from_row(row, "accurateLongBalls_per_90", "accurateLongBalls", default=0.0)
 
         deep_completion_proxy = (0.9 * big_created_p90) + (0.22 * inside_box_shots_p90) + (0.75 * fast_breaks_p90)
         progressive_runs_proxy = (0.5 * dribbles_p90) + (1.1 * fast_breaks_p90)
