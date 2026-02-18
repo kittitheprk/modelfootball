@@ -81,8 +81,9 @@ python scripts/system_check.py
 2. อัปเดตข้อมูลล่าสุด (แนะนำก่อนวิเคราะห์)
 
 ```bash
-python scripts/run_update.py --preflight-only
-python scripts/run_update.py
+# Main pipeline file
+python update_football_data.py --headless --preflight-only
+python update_football_data.py --headless
 ```
 
 3. เตรียม context ก่อนแข่งใน `match_context.txt` (ถ้ามี)
@@ -161,10 +162,10 @@ python update_tracker.py close_loop
 python analyze_match.py <HomeTeam> <AwayTeam> --target-score 0-2
 
 # pipeline โหมดดูขั้นตอนอย่างเดียว
-python scripts/run_update.py --dry-run
+python update_football_data.py --headless --dry-run
 
 # pipeline โหมดไปต่อแม้บางสเต็ปล้ม
-python scripts/run_update.py --continue-on-error
+python update_football_data.py --headless --continue-on-error
 ```
 
 ## Output ที่จะได้
