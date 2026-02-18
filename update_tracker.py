@@ -1,5 +1,6 @@
 ﻿
 import json
+import math
 import os
 import re
 import shutil
@@ -10,6 +11,16 @@ import pandas as pd
 
 NO_BET_LABEL = "No Bet"
 TEAM_SUFFIX_TOKENS = {"fc", "cf", "sc", "afc", "ac"}
+CALIBRATION_FILE = "model_calibration.json"
+PERFORMANCE_FILE = "model_performance.json"
+QUALITY_GATES = {
+    "min_completed_matches": 30,
+    "result_accuracy_min": 0.50,
+    "brier_1x2_max": 0.62,
+    "log_loss_1x2_max": 1.05,
+    "score_mae_max": 1.35,
+    "xg_mae_max": 0.95,
+}
 
 
 def backup_tracker(excel_file, max_backups=10):
@@ -112,6 +123,19 @@ def _format_line_value(val):
     return str(num).rstrip("0").rstrip(".")
 
 
+def _is_blank_value(val):
+    if val is None:
+        return True
+    try:
+        if pd.isna(val):
+            return True
+    except Exception:
+        pass
+    if isinstance(val, str) and val.strip() == "":
+        return True
+    return False
+
+
 def normalize_selection(selection):
     if selection is None:
         return None
@@ -178,6 +202,242 @@ def evaluate_bet_outcome(selected_bet, actual_score, actual_result):
         return "Won" if res == "home" else "Lost"
     return "Pending"
 
+
+def _parse_score_pair(score):
+    if score is None:
+        return None
+    text = str(score).strip()
+    if not text:
+        return None
+    m = re.match(r"^\s*(\d+)\s*[-:]\s*(\d+)\s*$", text)
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
+def _safe_num(value, default=None):
+    try:
+        out = float(value)
+        if pd.isna(out):
+            return default
+        return out
+    except Exception:
+        return default
+
+
+def _recency_weight(date_val, max_date, half_life_days=120.0):
+    try:
+        d = pd.to_datetime(date_val, errors="coerce")
+        if pd.isna(d) or pd.isna(max_date):
+            return 1.0
+        age_days = max(0.0, (max_date - d).days)
+        return float(0.5 ** (age_days / max(1.0, half_life_days)))
+    except Exception:
+        return 1.0
+
+
+def _clip(value, low, high):
+    return max(low, min(high, value))
+
+
+def _normalize_1x2_probs(home, draw, away):
+    vals = [
+        max(0.0, _safe_num(home, 0.0) or 0.0),
+        max(0.0, _safe_num(draw, 0.0) or 0.0),
+        max(0.0, _safe_num(away, 0.0) or 0.0),
+    ]
+    s = sum(vals)
+    if s <= 0.0:
+        return (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
+    if s > 3.0:
+        vals = [v / 100.0 for v in vals]
+        s = sum(vals)
+    if s <= 0.0:
+        return (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
+    return (vals[0] / s, vals[1] / s, vals[2] / s)
+
+
+def _safe_mean(values):
+    clean = [float(v) for v in values if v is not None]
+    if not clean:
+        return None
+    return float(sum(clean) / len(clean))
+
+
+def _round_metric_dict(metrics, digits=4):
+    out = {}
+    for key, val in metrics.items():
+        if isinstance(val, float):
+            out[key] = round(val, digits)
+        else:
+            out[key] = val
+    return out
+
+
+def _result_from_score_pair(score_pair):
+    if score_pair is None:
+        return None
+    h, a = score_pair
+    if h > a:
+        return "Home"
+    if h < a:
+        return "Away"
+    return "Draw"
+
+
+def _aggregate_eval_records(records):
+    n = len(records)
+    if n == 0:
+        return {"n_matches": 0}
+
+    metrics = {
+        "n_matches": int(n),
+        "result_accuracy": _safe_mean([r.get("result_correct") for r in records]),
+        "brier_1x2": _safe_mean([r.get("brier") for r in records]),
+        "log_loss_1x2": _safe_mean([r.get("logloss") for r in records]),
+        "exact_score_accuracy": _safe_mean([r.get("exact_score") for r in records]),
+        "score_mae": _safe_mean([r.get("score_mae") for r in records]),
+        "goal_diff_mae": _safe_mean([r.get("goal_diff_abs") for r in records]),
+        "home_goal_mae": _safe_mean([r.get("home_goal_abs") for r in records]),
+        "away_goal_mae": _safe_mean([r.get("away_goal_abs") for r in records]),
+        "total_goals_mae": _safe_mean([r.get("total_goal_abs") for r in records]),
+        "xg_mae": _safe_mean([r.get("xg_mae") for r in records]),
+        "xg_rows": int(sum(1 for r in records if r.get("xg_mae") is not None)),
+    }
+    return _round_metric_dict(metrics, digits=4)
+
+
+def _evaluate_prediction_rows(df):
+    if df is None or df.empty:
+        return {"overall": {"n_matches": 0}, "by_league": {}, "by_pred_result": {}, "by_actual_result": {}}
+
+    records = []
+    idx_map = {"Home": 0, "Draw": 1, "Away": 2}
+    eps = 1e-12
+
+    for _, row in df.iterrows():
+        actual_score_pair = _parse_score_pair(row.get("Actual_Score"))
+        actual_result = str(row.get("Actual_Result", "")).strip().title()
+        if actual_result not in {"Home", "Draw", "Away"}:
+            actual_result = _result_from_score_pair(actual_score_pair)
+        if actual_result not in {"Home", "Draw", "Away"}:
+            continue
+
+        p_home, p_draw, p_away = _normalize_1x2_probs(
+            row.get("Pred_Home_Win%"),
+            row.get("Pred_Draw%"),
+            row.get("Pred_Away_Win%"),
+        )
+        probs = [p_home, p_draw, p_away]
+
+        pred_result = str(row.get("Pred_Result", "")).strip().title()
+        if pred_result not in {"Home", "Draw", "Away"}:
+            pred_result = ["Home", "Draw", "Away"][int(max(range(3), key=lambda i: probs[i]))]
+
+        y = [0.0, 0.0, 0.0]
+        y[idx_map[actual_result]] = 1.0
+        brier = sum((probs[i] - y[i]) ** 2 for i in range(3))
+        logloss = -math.log(max(eps, probs[idx_map[actual_result]]))
+        result_correct = 1.0 if pred_result == actual_result else 0.0
+
+        pred_score_pair = _parse_score_pair(row.get("Pred_Score"))
+        home_goal_abs = away_goal_abs = total_goal_abs = score_mae = goal_diff_abs = exact_score = None
+        if pred_score_pair is not None and actual_score_pair is not None:
+            ph, pa = pred_score_pair
+            ah, aa = actual_score_pair
+            home_goal_abs = abs(float(ph) - float(ah))
+            away_goal_abs = abs(float(pa) - float(aa))
+            total_goal_abs = abs(float((ph + pa) - (ah + aa)))
+            score_mae = (home_goal_abs + away_goal_abs) / 2.0
+            goal_diff_abs = abs(float((ph - pa) - (ah - aa)))
+            exact_score = 1.0 if (ph == ah and pa == aa) else 0.0
+
+        exp_h = _safe_num(row.get("Expected_Goals_Home"), None)
+        exp_a = _safe_num(row.get("Expected_Goals_Away"), None)
+        xg_mae = None
+        if exp_h is not None and exp_a is not None and actual_score_pair is not None:
+            ah, aa = actual_score_pair
+            xg_mae = (abs(exp_h - float(ah)) + abs(exp_a - float(aa))) / 2.0
+
+        records.append(
+            {
+                "league": str(row.get("League", "")).strip() or "Unknown",
+                "pred_result": pred_result,
+                "actual_result": actual_result,
+                "result_correct": result_correct,
+                "brier": brier,
+                "logloss": logloss,
+                "exact_score": exact_score,
+                "score_mae": score_mae,
+                "goal_diff_abs": goal_diff_abs,
+                "home_goal_abs": home_goal_abs,
+                "away_goal_abs": away_goal_abs,
+                "total_goal_abs": total_goal_abs,
+                "xg_mae": xg_mae,
+            }
+        )
+
+    overall = _aggregate_eval_records(records)
+
+    def grouped(key):
+        buckets = {}
+        for rec in records:
+            buckets.setdefault(rec.get(key), []).append(rec)
+        out = {}
+        for group_name, rows in buckets.items():
+            out[str(group_name)] = _aggregate_eval_records(rows)
+        return out
+
+    return {
+        "overall": overall,
+        "by_league": grouped("league"),
+        "by_pred_result": grouped("pred_result"),
+        "by_actual_result": grouped("actual_result"),
+    }
+
+
+def _evaluate_quality_gates(overall_metrics, gates=None):
+    cfg = dict(QUALITY_GATES if gates is None else gates)
+    out = {
+        "passed": False,
+        "min_completed_matches": int(cfg.get("min_completed_matches", 30)),
+        "checks": {},
+    }
+
+    n = int(overall_metrics.get("n_matches", 0) or 0)
+    enough = n >= out["min_completed_matches"]
+    out["checks"]["min_completed_matches"] = {
+        "status": "pass" if enough else "fail",
+        "value": n,
+        "threshold": out["min_completed_matches"],
+        "operator": ">=",
+    }
+
+    def check(metric_key, threshold_key, operator):
+        val = overall_metrics.get(metric_key)
+        threshold = cfg.get(threshold_key)
+        if threshold is None:
+            return {"status": "skipped", "value": val, "threshold": None, "operator": operator}
+        if val is None:
+            return {"status": "insufficient_data", "value": None, "threshold": threshold, "operator": operator}
+        passed = bool(val >= threshold) if operator == ">=" else bool(val <= threshold)
+        return {
+            "status": "pass" if passed else "fail",
+            "value": round(float(val), 4),
+            "threshold": threshold,
+            "operator": operator,
+        }
+
+    out["checks"]["result_accuracy"] = check("result_accuracy", "result_accuracy_min", ">=")
+    out["checks"]["brier_1x2"] = check("brier_1x2", "brier_1x2_max", "<=")
+    out["checks"]["log_loss_1x2"] = check("log_loss_1x2", "log_loss_1x2_max", "<=")
+    out["checks"]["score_mae"] = check("score_mae", "score_mae_max", "<=")
+    out["checks"]["xg_mae"] = check("xg_mae", "xg_mae_max", "<=")
+
+    required = [k for k, v in out["checks"].items() if v.get("status") in {"pass", "fail"}]
+    out["passed"] = enough and all(out["checks"][k]["status"] == "pass" for k in required if k != "min_completed_matches")
+    return out
+
 def _build_new_prediction_row(data):
     qc_raw = data.get("QC_Flags", "")
     if isinstance(qc_raw, list):
@@ -208,6 +468,11 @@ def _build_new_prediction_row(data):
         "Pred_Score_Unconditional": data.get("Pred_Score_Unconditional", ""),
         "Pred_Result_1X2": data.get("Pred_Result_1X2", data.get("Pred_Result", "")),
         "Pred_Result_From_Score": data.get("Pred_Result_From_Score", ""),
+        "Expected_Goals_Home": data.get("Expected_Goals_Home"),
+        "Expected_Goals_Away": data.get("Expected_Goals_Away"),
+        "Base_Expected_Goals_Home": data.get("Base_Expected_Goals_Home"),
+        "Base_Expected_Goals_Away": data.get("Base_Expected_Goals_Away"),
+        "Target_Score_Input": data.get("Target_Score_Input"),
         "QC_Flags": qc_text,
         "Context_Header": ctx_text,
         "Actual_Score": None,
@@ -217,6 +482,290 @@ def _build_new_prediction_row(data):
         "Goal_Diff_Error": None,
         "Notes": None,
     }
+
+
+def _build_calibration_from_predictions(df):
+    if df is None or df.empty:
+        return None
+    if "Actual_Score" not in df.columns:
+        return None
+
+    done = df[df["Actual_Score"].notna() & (df["Actual_Score"].astype(str).str.strip() != "")].copy()
+    if done.empty:
+        return None
+
+    date_series = pd.to_datetime(done.get("Date"), errors="coerce")
+    max_date = date_series.max()
+
+    league_acc = {}
+    team_acc = {}
+    used_rows = 0
+
+    for _, row in done.iterrows():
+        actual = _parse_score_pair(row.get("Actual_Score"))
+        pred_score = _parse_score_pair(row.get("Pred_Score"))
+        if actual is None:
+            continue
+
+        exp_h = _safe_num(row.get("Expected_Goals_Home"), None)
+        exp_a = _safe_num(row.get("Expected_Goals_Away"), None)
+        if exp_h is None or exp_a is None:
+            if pred_score is None:
+                continue
+            exp_h = float(pred_score[0])
+            exp_a = float(pred_score[1])
+
+        ah, aa = actual
+        res_h = float(ah) - float(exp_h)
+        res_a = float(aa) - float(exp_a)
+
+        weight = _recency_weight(row.get("Date"), max_date=max_date, half_life_days=120.0)
+        league = str(row.get("League", "")).strip() or "Unknown"
+        home_team = str(row.get("Home_Team", "")).strip()
+        away_team = str(row.get("Away_Team", "")).strip()
+
+        l = league_acc.setdefault(league, {"home_sum": 0.0, "away_sum": 0.0, "w": 0.0, "n": 0})
+        l["home_sum"] += res_h * weight
+        l["away_sum"] += res_a * weight
+        l["w"] += weight
+        l["n"] += 1
+
+        if home_team:
+            t = team_acc.setdefault(home_team, {"attack_sum": 0.0, "defense_sum": 0.0, "w": 0.0, "n": 0})
+            t["attack_sum"] += res_h * weight
+            t["defense_sum"] += res_a * weight
+            t["w"] += weight
+            t["n"] += 1
+
+        if away_team:
+            t = team_acc.setdefault(away_team, {"attack_sum": 0.0, "defense_sum": 0.0, "w": 0.0, "n": 0})
+            t["attack_sum"] += res_a * weight
+            t["defense_sum"] += res_h * weight
+            t["w"] += weight
+            t["n"] += 1
+
+        used_rows += 1
+
+    if used_rows == 0:
+        return None
+
+    total_home = total_away = total_w = 0.0
+    total_n = 0
+    by_league = {}
+    for league, stats in league_acc.items():
+        w = max(1e-9, stats["w"])
+        home_res = stats["home_sum"] / w
+        away_res = stats["away_sum"] / w
+        league_rel = _clip(stats["n"] / 12.0, 0.0, 1.0)
+        raw_home_scale = _clip(1.0 + (0.08 * home_res), 0.90, 1.10)
+        raw_away_scale = _clip(1.0 + (0.08 * away_res), 0.90, 1.10)
+        home_scale = 1.0 + ((raw_home_scale - 1.0) * league_rel)
+        away_scale = 1.0 + ((raw_away_scale - 1.0) * league_rel)
+        by_league[league] = {
+            "n_matches": int(stats["n"]),
+            "weighted_home_goal_residual": round(home_res, 4),
+            "weighted_away_goal_residual": round(away_res, 4),
+            "home_scale": round(home_scale, 4),
+            "away_scale": round(away_scale, 4),
+            "reliability": round(league_rel, 3),
+        }
+        total_home += stats["home_sum"]
+        total_away += stats["away_sum"]
+        total_w += stats["w"]
+        total_n += stats["n"]
+
+    by_team = {}
+    for team, stats in team_acc.items():
+        w = max(1e-9, stats["w"])
+        attack_res = stats["attack_sum"] / w
+        defense_res = stats["defense_sum"] / w
+        reliability = _clip(stats["n"] / 8.0, 0.0, 1.0)
+        attack_scale = 1.0 + (0.10 * attack_res * reliability)
+        defense_scale = 1.0 + (0.10 * defense_res * reliability)
+        by_team[team] = {
+            "n_matches": int(stats["n"]),
+            "weighted_attack_residual": round(attack_res, 4),
+            "weighted_defense_residual": round(defense_res, 4),
+            "attack_scale": round(_clip(attack_scale, 0.90, 1.12), 4),
+            "defense_scale": round(_clip(defense_scale, 0.90, 1.12), 4),
+            "reliability": round(reliability, 3),
+        }
+
+    by_team = dict(
+        sorted(by_team.items(), key=lambda kv: kv[1].get("n_matches", 0), reverse=True)
+    )
+
+    g_w = max(1e-9, total_w)
+    global_home_res = total_home / g_w
+    global_away_res = total_away / g_w
+    global_rel = _clip(total_n / 30.0, 0.0, 1.0)
+    raw_home_scale = _clip(1.0 + (0.08 * global_home_res), 0.90, 1.10)
+    raw_away_scale = _clip(1.0 + (0.08 * global_away_res), 0.90, 1.10)
+    global_home_scale = 1.0 + ((raw_home_scale - 1.0) * global_rel)
+    global_away_scale = 1.0 + ((raw_away_scale - 1.0) * global_rel)
+
+    return {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source_rows_used": int(used_rows),
+        "global": {
+            "n_matches": int(total_n),
+            "weighted_home_goal_residual": round(global_home_res, 4),
+            "weighted_away_goal_residual": round(global_away_res, 4),
+            "home_scale": round(global_home_scale, 4),
+            "away_scale": round(global_away_scale, 4),
+            "reliability": round(global_rel, 3),
+        },
+        "by_league": by_league,
+        "by_team": by_team,
+        "notes": [
+            "Residual = actual goals - expected goals from latest_prediction.",
+            "If Expected_Goals_* missing, fallback uses Pred_Score as rough proxy.",
+            "Team scales are reliability-weighted and clipped to avoid overfitting.",
+        ],
+    }
+
+
+def build_model_calibration(filename="prediction_tracker.xlsx", output_file=CALIBRATION_FILE):
+    if not os.path.exists(filename):
+        print(f"{filename} not found.")
+        return
+    try:
+        df = pd.read_excel(filename, sheet_name="Predictions", engine="openpyxl")
+    except Exception as e:
+        print(f"Could not read Predictions sheet: {e}")
+        return
+
+    calibration = _build_calibration_from_predictions(df)
+    if not calibration:
+        print("[Info] No verified rows available for calibration yet.")
+        return
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(calibration, f, indent=4, ensure_ascii=False)
+
+    g = calibration["global"]
+    print(f"[Info] Calibration saved to {output_file}")
+    print(
+        "[Info] Global residuals "
+        f"H={g['weighted_home_goal_residual']:+.3f}, "
+        f"A={g['weighted_away_goal_residual']:+.3f} "
+        f"-> scales H={g['home_scale']:.3f}, A={g['away_scale']:.3f}"
+    )
+
+
+def evaluate_model_performance(filename="prediction_tracker.xlsx", output_file=PERFORMANCE_FILE):
+    if not os.path.exists(filename):
+        print(f"{filename} not found.")
+        return
+
+    try:
+        df = pd.read_excel(filename, sheet_name="Predictions", engine="openpyxl")
+    except Exception as e:
+        print(f"Could not read Predictions sheet: {e}")
+        return
+
+    metrics = _evaluate_prediction_rows(df)
+    overall = metrics.get("overall", {})
+    gates = _evaluate_quality_gates(overall)
+
+    payload = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source_file": filename,
+        "overall": overall,
+        "quality_gates": gates,
+        "by_league": metrics.get("by_league", {}),
+        "by_pred_result": metrics.get("by_pred_result", {}),
+        "by_actual_result": metrics.get("by_actual_result", {}),
+    }
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=4, ensure_ascii=False)
+
+    overall_rows = []
+    metric_labels = {
+        "n_matches": "n_matches",
+        "result_accuracy": "result_accuracy",
+        "brier_1x2": "brier_1x2",
+        "log_loss_1x2": "log_loss_1x2",
+        "exact_score_accuracy": "exact_score_accuracy",
+        "score_mae": "score_mae",
+        "goal_diff_mae": "goal_diff_mae",
+        "home_goal_mae": "home_goal_mae",
+        "away_goal_mae": "away_goal_mae",
+        "total_goals_mae": "total_goals_mae",
+        "xg_mae": "xg_mae",
+        "xg_rows": "xg_rows",
+    }
+    for key in metric_labels:
+        overall_rows.append(
+            {
+                "Section": "overall",
+                "Metric": metric_labels[key],
+                "Value": overall.get(key),
+            }
+        )
+    for gate_name, gate in gates.get("checks", {}).items():
+        overall_rows.append(
+            {
+                "Section": "quality_gate",
+                "Metric": gate_name,
+                "Value": gate.get("status"),
+                "Threshold": gate.get("threshold"),
+                "Current": gate.get("value"),
+                "Operator": gate.get("operator"),
+            }
+        )
+    overall_rows.append(
+        {
+            "Section": "quality_gate",
+            "Metric": "overall_passed",
+            "Value": bool(gates.get("passed")),
+        }
+    )
+    df_overall = pd.DataFrame(overall_rows)
+
+    league_rows = []
+    for league, m in (metrics.get("by_league") or {}).items():
+        row = {"League": league}
+        row.update(m)
+        league_rows.append(row)
+    df_league = pd.DataFrame(league_rows).sort_values(by="n_matches", ascending=False) if league_rows else pd.DataFrame()
+
+    seg_rows = []
+    for group_name, group_metrics in (metrics.get("by_pred_result") or {}).items():
+        row = {"Segment_Type": "pred_result", "Segment": group_name}
+        row.update(group_metrics)
+        seg_rows.append(row)
+    for group_name, group_metrics in (metrics.get("by_actual_result") or {}).items():
+        row = {"Segment_Type": "actual_result", "Segment": group_name}
+        row.update(group_metrics)
+        seg_rows.append(row)
+    df_segments = pd.DataFrame(seg_rows).sort_values(by=["Segment_Type", "n_matches"], ascending=[True, False]) if seg_rows else pd.DataFrame()
+
+    sheets = _load_all_sheets(filename)
+    sheets["Model Eval"] = df_overall
+    sheets["Model Eval League"] = df_league
+    sheets["Model Eval Segments"] = df_segments
+    backup_tracker(filename)
+    _save_all_sheets(filename, sheets)
+
+    print(f"[Info] Performance report saved to {output_file}")
+    print(
+        "[Info] Overall metrics "
+        f"n={overall.get('n_matches', 0)}, "
+        f"acc={overall.get('result_accuracy')}, "
+        f"brier={overall.get('brier_1x2')}, "
+        f"logloss={overall.get('log_loss_1x2')}, "
+        f"score_mae={overall.get('score_mae')} "
+        f"| gates_passed={gates.get('passed')}"
+    )
+
+
+def close_loop_after_actual(filename="prediction_tracker.xlsx"):
+    update_bet_results(filename=filename)
+    build_model_calibration(filename=filename, output_file=CALIBRATION_FILE)
+    evaluate_model_performance(filename=filename, output_file=PERFORMANCE_FILE)
+    print("[Info] Close loop complete: update_bets -> calibrate -> evaluate")
 
 
 def _build_bet_data_row(data):
@@ -344,7 +893,17 @@ def save_new_prediction():
 
     dup = _duplicate_mask(df_pred, new_row["Date"], new_row["Match"], new_row["Home_Team"], new_row["Away_Team"])
     if dup.any():
+        preserve_cols = {
+            "Actual_Score",
+            "Actual_Result",
+            "Result_Correct",
+            "Score_Correct",
+            "Goal_Diff_Error",
+            "Notes",
+        }
         for col, val in new_row.items():
+            if col in preserve_cols and _is_blank_value(val):
+                continue
             df_pred.loc[dup, col] = val
         print("[Info] Updated existing Predictions row.")
     else:
@@ -370,7 +929,18 @@ def save_new_prediction():
         df_predic = _ensure_columns(df_predic, list(predic_row.keys()))
         dup_predic = _duplicate_mask(df_predic, predic_row["Date"], predic_row["Match"])
         if dup_predic.any():
+            preserve_cols = {
+                "Actual_Score",
+                "Bet_Result",
+                "Odds",
+                "Implied_Prob",
+                "Edge",
+                "EV",
+                "Notes",
+            }
             for col, val in predic_row.items():
+                if col in preserve_cols and _is_blank_value(val):
+                    continue
                 df_predic.loc[dup_predic, col] = val
             print("[Info] Updated existing bet predic row.")
         else:
@@ -484,6 +1054,12 @@ def update_bet_results(filename="prediction_tracker.xlsx"):
     if df_pred.empty or df_bet.empty:
         print("No data to update bet results.")
         return
+
+    for col in ["Actual_Score", "Bet_Result"]:
+        if col not in df_bet.columns:
+            df_bet[col] = pd.Series([pd.NA] * len(df_bet), dtype="object")
+        else:
+            df_bet[col] = df_bet[col].astype("object")
 
     results = {}
     for _, row in df_pred.iterrows():
@@ -649,6 +1225,7 @@ def update_prediction_with_result():
     print("No hardcoded updater in rebuilt version.")
     print("Fill Actual_Score/Actual_Result manually in Predictions, then run:")
     print("python update_tracker.py update_bets")
+    print("or python update_tracker.py close_loop")
 
 
 if __name__ == "__main__":
@@ -663,8 +1240,14 @@ if __name__ == "__main__":
             update_bet_results()
         elif cmd == "update_ev":
             update_bet_ev()
+        elif cmd == "calibrate":
+            build_model_calibration()
+        elif cmd == "evaluate":
+            evaluate_model_performance()
+        elif cmd == "close_loop":
+            close_loop_after_actual()
         else:
-            print("Usage: python update_tracker.py [save|clean|update_bets|update_ev]")
+            print("Usage: python update_tracker.py [save|clean|update_bets|update_ev|calibrate|evaluate|close_loop]")
     else:
         update_prediction_with_result()
         calculate_summary_stats()
