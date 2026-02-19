@@ -1,0 +1,349 @@
+{
+    "generated_at": "2026-02-18 19:06:18",
+    "source_rows_used": 19,
+    "global": {
+        "n_matches": 19,
+        "weighted_home_goal_residual": 0.9,
+        "weighted_away_goal_residual": 0.0012,
+        "home_scale": 1.0456,
+        "away_scale": 1.0001,
+        "reliability": 0.633
+    },
+    "by_league": {
+        "Premier_League": {
+            "n_matches": 8,
+            "weighted_home_goal_residual": 0.2529,
+            "weighted_away_goal_residual": -0.2514,
+            "home_scale": 1.0135,
+            "away_scale": 0.9866,
+            "reliability": 0.667
+        },
+        "Serie_A": {
+            "n_matches": 4,
+            "weighted_home_goal_residual": 1.2547,
+            "weighted_away_goal_residual": 1.0014,
+            "home_scale": 1.0333,
+            "away_scale": 1.0267,
+            "reliability": 0.333
+        },
+        "La_Liga": {
+            "n_matches": 2,
+            "weighted_home_goal_residual": 1.5087,
+            "weighted_away_goal_residual": -0.5029,
+            "home_scale": 1.0167,
+            "away_scale": 0.9933,
+            "reliability": 0.167
+        },
+        "Ligue_1": {
+            "n_matches": 3,
+            "weighted_home_goal_residual": 1.325,
+            "weighted_away_goal_residual": 0.3423,
+            "home_scale": 1.025,
+            "away_scale": 1.0068,
+            "reliability": 0.25
+        },
+        "Bundesliga": {
+            "n_matches": 2,
+            "weighted_home_goal_residual": 1.5014,
+            "weighted_away_goal_residual": -1.0,
+            "home_scale": 1.0167,
+            "away_scale": 0.9867,
+            "reliability": 0.167
+        }
+    },
+    "by_team": {
+        "Liverpool": {
+            "n_matches": 2,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.25
+        },
+        "Juventus": {
+            "n_matches": 2,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 2.0,
+            "attack_scale": 1.025,
+            "defense_scale": 1.05,
+            "reliability": 0.25
+        },
+        "Brighton": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Crystal Palace": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.0,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Manchester City": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Roma": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Cagliari": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Valencia": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Real Madrid": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Lazio": {
+            "n_matches": 1,
+            "weighted_attack_residual": 2.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.025,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "PSG": {
+            "n_matches": 1,
+            "weighted_attack_residual": 4.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.05,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Marseille": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 4.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.05,
+            "reliability": 0.125
+        },
+        "Chelsea": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Leeds United": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Tottenham": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Newcastle": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "West Ham United": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": -2.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 0.975,
+            "reliability": 0.125
+        },
+        "Manchester United": {
+            "n_matches": 1,
+            "weighted_attack_residual": -2.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 0.975,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Everton": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Bournemouth": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Sunderland": {
+            "n_matches": 1,
+            "weighted_attack_residual": 0.0,
+            "weighted_defense_residual": 0.0,
+            "attack_scale": 1.0,
+            "defense_scale": 1.0,
+            "reliability": 0.125
+        },
+        "Rennes": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Paris S-G": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Atletico Madrid": {
+            "n_matches": 1,
+            "weighted_attack_residual": 3.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.0375,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Barcelona": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 3.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.0375,
+            "reliability": 0.125
+        },
+        "Brentford": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Arsenal": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Dortmund": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "Mainz": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Pisa": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Milan": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Leverkusen": {
+            "n_matches": 1,
+            "weighted_attack_residual": 2.0,
+            "weighted_defense_residual": -1.0,
+            "attack_scale": 1.025,
+            "defense_scale": 0.9875,
+            "reliability": 0.125
+        },
+        "St. Pauli": {
+            "n_matches": 1,
+            "weighted_attack_residual": -1.0,
+            "weighted_defense_residual": 2.0,
+            "attack_scale": 0.9875,
+            "defense_scale": 1.025,
+            "reliability": 0.125
+        },
+        "Inter": {
+            "n_matches": 1,
+            "weighted_attack_residual": 2.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.025,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "AS Monaco": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        },
+        "Paris Saint-Germain": {
+            "n_matches": 1,
+            "weighted_attack_residual": 1.0,
+            "weighted_defense_residual": 1.0,
+            "attack_scale": 1.0125,
+            "defense_scale": 1.0125,
+            "reliability": 0.125
+        }
+    },
+    "notes": [
+        "Residual = actual goals - expected goals from latest_prediction.",
+        "If Expected_Goals_* missing, fallback uses Pred_Score as rough proxy.",
+        "Team scales are reliability-weighted and clipped to avoid overfitting."
+    ]
+}

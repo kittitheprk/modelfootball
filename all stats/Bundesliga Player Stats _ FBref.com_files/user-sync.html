@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- saved from url=(0164)https://sync.creativedot2.net/user-sync?s=418&gdpr=0&gdpr_consent=&us_privacy=1-%2D-&r=https%3A%2F%2Fcs.media.net%2Fcksync%3Fcs%3D1%26type%3Dmdp%26ovsid%3D%7BUID%7D -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>User Sync</title>
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <script type="text/javascript">
+        let dsps = [{"u":"https://visitor-crystall.omnitagjs.com/visitor/bsync?uid=49aa1eb94c9034631f0a5ceb16651fbe&name=gen01&url=https%3A%2F%2Fsync.creativedot2.net%2Fuser-sync%2Fcallback%3Fx_uid%3DyKVD3OoJo_Ma%26s%3D418%26d%3D411%26visitor%3DPARTNER_USER_ID","t":"iframe"},{"u":"https://visitor.omnitagjs.com/visitor/isync?uid=19340f4f097d16f41f34fc0274981ca4&name=PrebidServer&url=https%3A%2F%2Fsync.creativedot2.net%2Fuser-sync%2Fcallback%3Fx_uid%3DyKVD3OoJo_Ma%26s%3D418%26d%3D428%26%2Fvisitor%3D%5BBUYER_USERID%5D","t":"iframe"},{"u":"https://cs.media.net/cksync?cs=1&type=mdp&ovsid=yKVD3OoJo_Ma","t":"iframe"}];
+
+        function sync() {
+            for (let i in dsps) {
+                switch (dsps[i].t) {
+                    case "iframe":
+                        const iframe = document.createElement('iframe');
+                        iframe.src = dsps[i].u;
+                        iframe.setAttribute('width', '1');
+                        iframe.setAttribute('height', '1');
+                        iframe.setAttribute('style', 'display: none;');
+                        if (document.body != null) {
+                            document.body.appendChild(iframe);
+                        }
+                        break;
+                    case "img":
+                        const img = document.createElement('img');
+                        img.src = dsps[i].u;
+                        img.style = "display: none;";
+                        if (document.body != null) {
+                            document.body.appendChild(img);
+                        }
+                        break;
+                }
+            }
+        }
+
+        window.onload = function () {
+            sync();
+        };</script>
+</head>
+<body marginwidth="0" marginheight="0">
+
+<iframe src="./bsync.html" width="1" height="1" style="display: none;"></iframe><iframe src="./isync.html" width="1" height="1" style="display: none;"></iframe><iframe src="./cksync.html" width="1" height="1" style="display: none;"></iframe></body></html>

@@ -1,0 +1,8 @@
+สร้างโฟเดอร์ดึงข้อมูลMatch Logsของทุกลีก โดยภายในโฟร์เดอร์Match Logsลีก จะประกอบไปด้วยสเปตชีตของทุกทีมในลีก ภายในสเปตชีตจะมีหน้าทีมต้องดึงข้อมูลมาใส่Shooting,Goalkeeping,Passing,Pass Types,Goal and Shot Creation,Defensive Actions,Possession,Miscellaneous Stats
+อย่างแรกต้องเข้าไปหน้าลีก
+"Premier_League": "https://fbref.com/en/comps/9/stats/Premier-League-Stats#all_stats_standard",
+    "Serie_A": "https://fbref.com/en/comps/11/stats/Serie-A-Stats#all_stats_standard",
+    "La_Liga": "https://fbref.com/en/comps/12/stats/La-Liga-Stats#all_stats_standard",
+    "Ligue_1": "https://fbref.com/en/comps/13/stats/Ligue-1-Stats#all_stats_standard",
+    "Bundesliga": "https://fbref.com/en/comps/20/stats/Bundesliga-Stats#all_stats_standard"
+และเข้าไปที่หน้าข้อมูลแต่ละทีมในลีก https://fbref.com/en/squads/18bb7c10/Arsenal-Stats และเลือกส่วนMatch Logs หา Match Logs (Premier League)และดึงข้อมูลMatch Logs https://fbref.com/en/squads/18bb7c10/2025-2026/matchlogs/c9/shooting/Arsenal-Match-Logs-Premier-League ในหน้าShooting,Goalkeeping,Passing,Pass Types,Goal and Shot Creation,Defensive Actions,Possession,Miscellaneous Stats

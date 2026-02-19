@@ -1,0 +1,220 @@
+{
+    "generated_at": "2026-02-18 19:06:18",
+    "source_file": "prediction_tracker.xlsx",
+    "overall": {
+        "n_matches": 19,
+        "result_accuracy": 0.6316,
+        "brier_1x2": 0.5185,
+        "log_loss_1x2": 0.9634,
+        "exact_score_accuracy": 0.2105,
+        "score_mae": 0.9211,
+        "goal_diff_mae": 1.4211,
+        "home_goal_mae": 1.1053,
+        "away_goal_mae": 0.7368,
+        "total_goals_mae": 1.1053,
+        "xg_mae": null,
+        "xg_rows": 0
+    },
+    "quality_gates": {
+        "passed": false,
+        "min_completed_matches": 30,
+        "checks": {
+            "min_completed_matches": {
+                "status": "fail",
+                "value": 19,
+                "threshold": 30,
+                "operator": ">="
+            },
+            "result_accuracy": {
+                "status": "pass",
+                "value": 0.6316,
+                "threshold": 0.5,
+                "operator": ">="
+            },
+            "brier_1x2": {
+                "status": "pass",
+                "value": 0.5185,
+                "threshold": 0.62,
+                "operator": "<="
+            },
+            "log_loss_1x2": {
+                "status": "pass",
+                "value": 0.9634,
+                "threshold": 1.05,
+                "operator": "<="
+            },
+            "score_mae": {
+                "status": "pass",
+                "value": 0.9211,
+                "threshold": 1.35,
+                "operator": "<="
+            },
+            "xg_mae": {
+                "status": "insufficient_data",
+                "value": null,
+                "threshold": 0.95,
+                "operator": "<="
+            }
+        }
+    },
+    "by_league": {
+        "Premier_League": {
+            "n_matches": 8,
+            "result_accuracy": 0.5,
+            "brier_1x2": 0.6937,
+            "log_loss_1x2": 1.3144,
+            "exact_score_accuracy": 0.375,
+            "score_mae": 0.5,
+            "goal_diff_mae": 1.0,
+            "home_goal_mae": 0.5,
+            "away_goal_mae": 0.5,
+            "total_goals_mae": 0.5,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Serie_A": {
+            "n_matches": 4,
+            "result_accuracy": 0.75,
+            "brier_1x2": 0.379,
+            "log_loss_1x2": 0.6753,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.125,
+            "goal_diff_mae": 0.75,
+            "home_goal_mae": 1.25,
+            "away_goal_mae": 1.0,
+            "total_goals_mae": 2.25,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "La_Liga": {
+            "n_matches": 2,
+            "result_accuracy": 0.5,
+            "brier_1x2": 0.5214,
+            "log_loss_1x2": 0.9085,
+            "exact_score_accuracy": 0.5,
+            "score_mae": 1.0,
+            "goal_diff_mae": 2.0,
+            "home_goal_mae": 1.5,
+            "away_goal_mae": 0.5,
+            "total_goals_mae": 1.0,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Ligue_1": {
+            "n_matches": 3,
+            "result_accuracy": 0.6667,
+            "brier_1x2": 0.4424,
+            "log_loss_1x2": 0.7803,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.5,
+            "goal_diff_mae": 2.3333,
+            "home_goal_mae": 2.0,
+            "away_goal_mae": 1.0,
+            "total_goals_mae": 1.6667,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Bundesliga": {
+            "n_matches": 2,
+            "result_accuracy": 1.0,
+            "brier_1x2": 0.2081,
+            "log_loss_1x2": 0.4653,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.25,
+            "goal_diff_mae": 2.5,
+            "home_goal_mae": 1.5,
+            "away_goal_mae": 1.0,
+            "total_goals_mae": 0.5,
+            "xg_mae": null,
+            "xg_rows": 0
+        }
+    },
+    "by_pred_result": {
+        "Draw": {
+            "n_matches": 2,
+            "result_accuracy": 0.0,
+            "brier_1x2": 0.5992,
+            "log_loss_1x2": 0.9976,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.5,
+            "goal_diff_mae": 3.0,
+            "home_goal_mae": 2.5,
+            "away_goal_mae": 0.5,
+            "total_goals_mae": 2.0,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Away": {
+            "n_matches": 11,
+            "result_accuracy": 0.7273,
+            "brier_1x2": 0.5278,
+            "log_loss_1x2": 1.0313,
+            "exact_score_accuracy": 0.3636,
+            "score_mae": 0.7273,
+            "goal_diff_mae": 1.0909,
+            "home_goal_mae": 0.8182,
+            "away_goal_mae": 0.6364,
+            "total_goals_mae": 0.7273,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Home": {
+            "n_matches": 6,
+            "result_accuracy": 0.6667,
+            "brier_1x2": 0.4746,
+            "log_loss_1x2": 0.8277,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.0833,
+            "goal_diff_mae": 1.5,
+            "home_goal_mae": 1.1667,
+            "away_goal_mae": 1.0,
+            "total_goals_mae": 1.5,
+            "xg_mae": null,
+            "xg_rows": 0
+        }
+    },
+    "by_actual_result": {
+        "Away": {
+            "n_matches": 9,
+            "result_accuracy": 0.8889,
+            "brier_1x2": 0.3146,
+            "log_loss_1x2": 0.6049,
+            "exact_score_accuracy": 0.4444,
+            "score_mae": 0.4444,
+            "goal_diff_mae": 0.4444,
+            "home_goal_mae": 0.5556,
+            "away_goal_mae": 0.3333,
+            "total_goals_mae": 0.6667,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Home": {
+            "n_matches": 6,
+            "result_accuracy": 0.6667,
+            "brier_1x2": 0.393,
+            "log_loss_1x2": 0.7127,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.5,
+            "goal_diff_mae": 2.6667,
+            "home_goal_mae": 2.1667,
+            "away_goal_mae": 0.8333,
+            "total_goals_mae": 1.6667,
+            "xg_mae": null,
+            "xg_rows": 0
+        },
+        "Draw": {
+            "n_matches": 4,
+            "result_accuracy": 0.0,
+            "brier_1x2": 1.1655,
+            "log_loss_1x2": 2.1464,
+            "exact_score_accuracy": 0.0,
+            "score_mae": 1.125,
+            "goal_diff_mae": 1.75,
+            "home_goal_mae": 0.75,
+            "away_goal_mae": 1.5,
+            "total_goals_mae": 1.25,
+            "xg_mae": null,
+            "xg_rows": 0
+        }
+    }
+}

@@ -1,0 +1,299 @@
+{
+    "Date": "2026-02-18",
+    "Match": "Arsenal vs Liverpool",
+    "Match_Canonical": "Arsenal vs Liverpool",
+    "League": "Premier_League",
+    "Home_Team": "Arsenal",
+    "Away_Team": "Liverpool",
+    "Home_Team_Canonical": "Arsenal",
+    "Away_Team_Canonical": "Liverpool",
+    "Pred_Home_Win": 44.80654690913581,
+    "Pred_Draw": 27.728920103187548,
+    "Pred_Away_Win": 27.464532987676627,
+    "Pred_Score": "1-0",
+    "Pred_Result": "Home",
+    "Pred_Score_Unconditional": "1-1",
+    "Pred_Result_1X2": "Home",
+    "Pred_Result_From_Score": "Home",
+    "Pred_Aligned_Score_Prob": 10.83092589613824,
+    "Expected_Goals_Home": 1.5017766977276212,
+    "Expected_Goals_Away": 1.1276368095948612,
+    "Base_Expected_Goals_Home": 1.4117,
+    "Base_Expected_Goals_Away": 1.2017,
+    "Target_Score_Input": null,
+    "Target_Score_Analysis": null,
+    "Model_Version": "v9",
+    "QC_Flags": [
+        "Context match header 'Cagliari vs Lecce' does not match requested fixture 'Arsenal vs Liverpool'.",
+        "Context league header 'SerieA' differs from detected league 'Premier_League'."
+    ],
+    "Context_Header": {
+        "match": "Cagliari vs Lecce",
+        "date": "2026-02-16",
+        "league": "SerieA"
+    },
+    "Bet_Data": {
+        "HDP_-3": 0.029134646793412437,
+        "HDP_-2": 0.09029382932976417,
+        "HDP_-1": 0.22842709892371124,
+        "HDP_0": 0.45830940162219935,
+        "HDP_1": 0.7151028801733446,
+        "HDP_2": 0.8877142589418939,
+        "HDP_3": 0.9655942794641601,
+        "Over_0.5": 0.9278747820312345,
+        "Under_0.5": 0.07212074812804598,
+        "Over_1.5": 0.7382395127451479,
+        "Under_1.5": 0.2617560174141327,
+        "Over_2.5": 0.4889247434823609,
+        "Under_2.5": 0.5110707866769191,
+        "Over_3.5": 0.2704075361908414,
+        "Under_3.5": 0.7295879939684384
+    },
+    "Bet_Detail": {
+        "HDP_-3": {
+            "win": 0.029134646793412437,
+            "push": 0.0611591825363517,
+            "loss": 0.9097017008295163
+        },
+        "HDP_-2": {
+            "win": 0.09029382932976417,
+            "push": 0.13813326959394706,
+            "loss": 0.7715684312355692
+        },
+        "HDP_-1": {
+            "win": 0.22842709892371124,
+            "push": 0.22988230269848836,
+            "loss": 0.5416861285370808
+        },
+        "HDP_0": {
+            "win": 0.45830940162219935,
+            "push": 0.25679347855114454,
+            "loss": 0.2848926499859361
+        },
+        "HDP_1": {
+            "win": 0.7151028801733446,
+            "push": 0.17261137876854926,
+            "loss": 0.11228127121738668
+        },
+        "HDP_2": {
+            "win": 0.8877142589418939,
+            "push": 0.07788002052226614,
+            "loss": 0.03440125069512056
+        },
+        "HDP_3": {
+            "win": 0.9655942794641601,
+            "push": 0.025891268019201587,
+            "loss": 0.008509982675918964
+        }
+    },
+    "Progression_Data": {
+        "home": {
+            "xt_proxy": 0.5570123721016622,
+            "deep_completion_proxy": 5.142692307692308,
+            "progressive_runs_proxy": 4.861923076923077,
+            "u_shape_risk": 0.35756402076049915,
+            "counter_punch_index": 0.24956142661623126,
+            "prg_pass_dist": 215.76923076923077,
+            "prg_carry_dist": 7.27,
+            "big_created_p90": 2.076923076923077,
+            "inside_box_shots_p90": 11.076923076923077,
+            "fast_breaks_p90": 1.1153846153846154,
+            "corners_p90": 6.04,
+            "shots_on_target_p90": 4.96,
+            "long_balls_p90": 13.461538461538462,
+            "source": "team_stats_fallback"
+        },
+        "away": {
+            "xt_proxy": 0.6109852453015892,
+            "deep_completion_proxy": 5.2542307692307695,
+            "progressive_runs_proxy": 5.840000000000001,
+            "u_shape_risk": 0.34425001925507326,
+            "counter_punch_index": 0.33002574224502984,
+            "prg_pass_dist": 275.46153846153845,
+            "prg_carry_dist": 8.38,
+            "big_created_p90": 2.1153846153846154,
+            "inside_box_shots_p90": 10.115384615384615,
+            "fast_breaks_p90": 1.5,
+            "corners_p90": 5.81,
+            "shots_on_target_p90": 4.35,
+            "long_balls_p90": 16.73076923076923,
+            "source": "team_stats_fallback"
+        }
+    },
+    "Tactical_Scenarios": {
+        "method": "heuristic_event_model_v1",
+        "description": "Event probabilities estimated from PPDA, field tilt, progression proxies, and expected-goal surface.",
+        "match": "Arsenal vs Liverpool",
+        "model_expected_goals": {
+            "home": 1.502,
+            "away": 1.128
+        },
+        "scenarios": [
+            {
+                "team": "Arsenal",
+                "scenario_code": "set_piece_second_ball",
+                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
+                "probability_pct": 56.01,
+                "goal_probability_pct": 13.58,
+                "confidence": "high",
+                "sequence": [
+                    "Arsenal ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
+                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
+                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
+                ],
+                "statistical_basis": {
+                    "corners_p90": 6.04,
+                    "field_tilt": 0.629,
+                    "inside_box_shots_p90": 11.08,
+                    "big_created_p90": 2.08,
+                    "expected_goals_team": 1.502
+                },
+                "rank": 1,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Liverpool",
+                "scenario_code": "press_to_wide_release",
+                "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
+                "probability_pct": 34.84,
+                "goal_probability_pct": 12.13,
+                "confidence": "high",
+                "sequence": [
+                    "Liverpool บีบด้วย PPDA 4.88 เทียบคู่แข่ง 4.74",
+                    "Virgil van Dijk อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
+                    "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
+                    "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที"
+                ],
+                "statistical_basis": {
+                    "ppda_team": 4.878,
+                    "ppda_opponent": 4.739,
+                    "high_error_rate": 19.0,
+                    "directness": 0.0643,
+                    "xt_proxy": 0.611,
+                    "counter_punch_index": 0.33,
+                    "long_balls_p90": 16.73,
+                    "expected_goals_team": 1.128
+                },
+                "rank": 2,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Arsenal",
+                "scenario_code": "press_to_wide_release",
+                "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
+                "probability_pct": 33.19,
+                "goal_probability_pct": 11.82,
+                "confidence": "high",
+                "sequence": [
+                    "Arsenal บีบด้วย PPDA 4.74 เทียบคู่แข่ง 4.88",
+                    "Declan Rice อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
+                    "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
+                    "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที"
+                ],
+                "statistical_basis": {
+                    "ppda_team": 4.739,
+                    "ppda_opponent": 4.878,
+                    "high_error_rate": 17.0,
+                    "directness": 0.0606,
+                    "xt_proxy": 0.557,
+                    "counter_punch_index": 0.25,
+                    "long_balls_p90": 13.46,
+                    "expected_goals_team": 1.502
+                },
+                "rank": 3,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Liverpool",
+                "scenario_code": "set_piece_second_ball",
+                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
+                "probability_pct": 48.64,
+                "goal_probability_pct": 11.4,
+                "confidence": "high",
+                "sequence": [
+                    "Liverpool ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
+                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
+                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
+                ],
+                "statistical_basis": {
+                    "corners_p90": 5.81,
+                    "field_tilt": 0.68,
+                    "inside_box_shots_p90": 10.12,
+                    "big_created_p90": 2.12,
+                    "expected_goals_team": 1.128
+                },
+                "rank": 4,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Liverpool",
+                "scenario_code": "counter_after_absorb",
+                "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
+                "probability_pct": 30.51,
+                "goal_probability_pct": 10.51,
+                "confidence": "high",
+                "sequence": [
+                    "Liverpool ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
+                    "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
+                    "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box"
+                ],
+                "statistical_basis": {
+                    "counter_punch_index": 0.33,
+                    "fast_breaks_p90": 1.5,
+                    "field_tilt_team": 0.68,
+                    "field_tilt_opponent": 0.629,
+                    "inside_box_shots_p90": 10.12,
+                    "expected_goals_team": 1.128
+                },
+                "rank": 5,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Arsenal",
+                "scenario_code": "counter_after_absorb",
+                "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
+                "probability_pct": 27.24,
+                "goal_probability_pct": 9.8,
+                "confidence": "high",
+                "sequence": [
+                    "Arsenal ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
+                    "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
+                    "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box"
+                ],
+                "statistical_basis": {
+                    "counter_punch_index": 0.25,
+                    "fast_breaks_p90": 1.12,
+                    "field_tilt_team": 0.629,
+                    "field_tilt_opponent": 0.68,
+                    "inside_box_shots_p90": 11.08,
+                    "expected_goals_team": 1.502
+                },
+                "rank": 6,
+                "impact_tier": "medium"
+            }
+        ],
+        "notes": [
+            "probability_pct = chance that this tactical pattern occurs at least once in the match.",
+            "goal_probability_pct = chance that the same tactical pattern leads to at least one goal.",
+            "These are statistically-guided scenario probabilities, not guaranteed outcomes."
+        ]
+    },
+    "Calibration_Context": {
+        "enabled": true,
+        "path": "model_calibration.json",
+        "home_multiplier": 1.0365071361961444,
+        "away_multiplier": 0.9926735669470057,
+        "global_home_scale": 1.0288648,
+        "global_away_scale": 1.0000633,
+        "league_home_scale": 1.0090045,
+        "league_away_scale": 0.9910622,
+        "home_team_attack_scale": 0.9984375,
+        "home_team_defense_scale": 1.0015625,
+        "away_team_attack_scale": 1.0,
+        "away_team_defense_scale": 1.0
+    },
+    "AI_Report_Generated": false,
+    "AI_Report_Path": null,
+    "AI_Report_Error": "missing_api_key",
+    "Gemini_Key_Source": null
+}
