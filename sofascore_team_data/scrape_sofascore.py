@@ -96,18 +96,6 @@ def scrape_teams_stats():
         
         league_stats_data = []
         
-        # Stats needing per 90 conversion (High volume/impact)
-        # Note: We assume full matches (90 mins). Per 90 ~ Per Match for teams.
-        STATS_TO_CONVERT = [
-            'goalsScored', 'goalsConceded', 'shots', 'shotsOnTarget', 'blockedShots',
-            'corners', 'fouls', 'yellowCards', 'redCards',
-            'bigChances', 'bigChancesMissed', 'hitWoodwork', 'counterAttacks', 'penaltyGoals',
-            'accuratePasses', 'keyPasses', 'longBalls', 'crosses',
-            'tackles', 'interceptions', 'clearances', 'saves', 'ballsRecovered',
-            'duelsWon', 'groundDuelsWon', 'aerialDuelsWon', 'possessionLost',
-            'successfulDribbles'
-        ]
-
         # 2. Scrape Stats for each Team
         for team in teams_list:
             team_name = team['name']
@@ -129,23 +117,7 @@ def scrape_teams_stats():
                 flat_stats['Team_ID'] = team_id
                 flat_stats['League'] = league_name
                 flat_stats['Matches_Played'] = matches_played
-                
-                # Calculate Per 90 Stats
-                if matches_played > 0:
-                    for key in STATS_TO_CONVERT:
-                        # Check keys with and without 'total' prefix if necessary, but flat keys usually match
-                        # We iterate our target list and check if it exists in data
-                        val = flat_stats.get(key)
-                        if val is not None and isinstance(val, (int, float)):
-                            flat_stats[f"{key}_per_90"] = round(val / matches_played, 2)
-                        
-                        # Some keys might be named slightly differently after flattening (e.g. nested)
-                        # But flatten_stats uses underscores. Let's try to find them dynamically?
-                        # For now, relying on exact matches or manual mapping is safer.
-                        # Common mapped keys from visual inspection:
-                        # 'shots', 'shotsOnTarget', 'accuratePasses' usually exist directly or as 'passes_accurate'
-                        # Let's adjust for common flatten patterns if needed.
-                        
+
                 league_stats_data.append(flat_stats)
                 print(f"  + Scraped stats for {team_name} (Matches: {matches_played})")
             else:

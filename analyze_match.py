@@ -1,4 +1,5 @@
 
+import argparse
 import json
 import math
 import os
@@ -33,6 +34,7 @@ TEAM_NAME_MAP = {
 }
 
 TEAM_SUFFIX_TOKENS = {"fc", "cf", "sc", "afc", "ac"}
+SCORE_PAIR_RE = re.compile(r"^\s*(\d+)\s*[-:]\s*(\d+)\s*$")
 
 
 def normalize_team_name(name):
@@ -89,6 +91,28 @@ def _find_team_row(df, team_col, team_name):
     return None
 
 
+def _to_number(value):
+    try:
+        num = float(value)
+    except Exception:
+        return None
+    if pd.isna(num):
+        return None
+    return num
+
+
+def _per90_from_row(row, per90_key, raw_key, default=0.0):
+    per90_val = _to_number(row.get(per90_key))
+    if per90_val is not None:
+        return per90_val
+
+    raw_val = _to_number(row.get(raw_key))
+    matches_played = _to_number(row.get("Matches_Played"))
+    if raw_val is None or matches_played is None or matches_played <= 0:
+        return default
+    return raw_val / matches_played
+
+
 def find_team_league(team_name):
     base = Path("sofaplayer")
     if not base.exists():
@@ -113,9 +137,11 @@ def get_simulation_stats(team_name, league):
         row = _find_team_row(df, "Team_Name", team_name)
         if row is None:
             return None
+        goals_scored_p90 = _per90_from_row(row, "goalsScored_per_90", "goalsScored", default=0.0)
+        goals_conceded_p90 = _per90_from_row(row, "goalsConceded_per_90", "goalsConceded", default=0.0)
         return {
-            "goals_scored_per_game": float(row.get("goalsScored_per_90", 0.0)),
-            "goals_conceded_per_game": float(row.get("goalsConceded_per_90", 0.0)),
+            "goals_scored_per_game": float(goals_scored_p90),
+            "goals_conceded_per_game": float(goals_conceded_p90),
         }
     except Exception:
         return None
@@ -130,12 +156,18 @@ def get_progression_stats(team_name, league):
         row = _find_team_row(df, "Team_Name", team_name)
         if row is None:
             return {}
-        matches = max(1.0, float(row.get("Matches_Played", 1)))
-        opp_half_passes_p90 = float(row.get("accurateOppositionHalfPasses", 0.0)) / matches
-        dribbles_p90 = float(row.get("successfulDribbles_per_90", row.get("successfulDribbles", 0.0) / matches))
-        big_created_p90 = float(row.get("bigChancesCreated", 0.0)) / matches
-        inside_box_shots_p90 = float(row.get("shotsFromInsideTheBox", 0.0)) / matches
-        fast_breaks_p90 = float(row.get("fastBreaks", 0.0)) / matches
+        opp_half_passes_p90 = _per90_from_row(
+            row, "accurateOppositionHalfPasses_per_90", "accurateOppositionHalfPasses", default=0.0
+        )
+        dribbles_p90 = _per90_from_row(row, "successfulDribbles_per_90", "successfulDribbles", default=0.0)
+        big_created_p90 = _per90_from_row(row, "bigChancesCreated_per_90", "bigChancesCreated", default=0.0)
+        inside_box_shots_p90 = _per90_from_row(
+            row, "shotsFromInsideTheBox_per_90", "shotsFromInsideTheBox", default=0.0
+        )
+        fast_breaks_p90 = _per90_from_row(row, "fastBreaks_per_90", "fastBreaks", default=0.0)
+        corners_p90 = _per90_from_row(row, "corners_per_90", "corners", default=0.0)
+        shots_on_target_p90 = _per90_from_row(row, "shotsOnTarget_per_90", "shotsOnTarget", default=0.0)
+        long_balls_p90 = _per90_from_row(row, "accurateLongBalls_per_90", "accurateLongBalls", default=0.0)
 
         deep_completion_proxy = (0.9 * big_created_p90) + (0.22 * inside_box_shots_p90) + (0.75 * fast_breaks_p90)
         progressive_runs_proxy = (0.5 * dribbles_p90) + (1.1 * fast_breaks_p90)
@@ -151,6 +183,12 @@ def get_progression_stats(team_name, league):
             "counter_punch_index": float(counter_punch_index),
             "prg_pass_dist": float(opp_half_passes_p90),
             "prg_carry_dist": float(dribbles_p90),
+            "big_created_p90": float(big_created_p90),
+            "inside_box_shots_p90": float(inside_box_shots_p90),
+            "fast_breaks_p90": float(fast_breaks_p90),
+            "corners_p90": float(corners_p90),
+            "shots_on_target_p90": float(shots_on_target_p90),
+            "long_balls_p90": float(long_balls_p90),
             "source": "team_stats_fallback",
         }
     except Exception:
@@ -310,6 +348,235 @@ def _result_from_score(score):
     return "Draw"
 
 
+def _parse_score_pair(score_text):
+    if score_text is None:
+        return None
+    m = SCORE_PAIR_RE.match(str(score_text))
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
+def _score_probability(lambda_home, lambda_away, home_goals, away_goals):
+    if home_goals < 0 or away_goals < 0:
+        return 0.0
+    lam_h = max(0.0, float(lambda_home))
+    lam_a = max(0.0, float(lambda_away))
+    p_h = math.exp(-lam_h) * (lam_h ** int(home_goals)) / math.factorial(int(home_goals))
+    p_a = math.exp(-lam_a) * (lam_a ** int(away_goals)) / math.factorial(int(away_goals))
+    return float(p_h * p_a)
+
+
+def _target_realism_band(prob_pct, rank):
+    if rank is not None and rank <= 3 and prob_pct >= 4.0:
+        return "high"
+    if rank is not None and rank <= 8 and prob_pct >= 2.0:
+        return "medium"
+    if prob_pct >= 0.8:
+        return "low"
+    return "long_shot"
+
+
+def _search_reasonable_shift(lambda_home, lambda_away, target_home, target_away):
+    base_prob = _score_probability(lambda_home, lambda_away, target_home, target_away)
+    target_prob = min(0.25, base_prob + max(0.008, base_prob * 0.35))
+
+    scales = [round(0.72 + (i * 0.02), 2) for i in range(29)]
+    best_reaching = None
+    best_any = None
+
+    for h_scale in scales:
+        for a_scale in scales:
+            cand_home = max(0.25, min(3.8, float(lambda_home) * h_scale))
+            cand_away = max(0.25, min(3.8, float(lambda_away) * a_scale))
+            prob = _score_probability(cand_home, cand_away, target_home, target_away)
+            move = abs(h_scale - 1.0) + abs(a_scale - 1.0)
+            candidate = {
+                "lambda_home": float(cand_home),
+                "lambda_away": float(cand_away),
+                "home_scale": float(h_scale),
+                "away_scale": float(a_scale),
+                "probability": float(prob),
+                "move": float(move),
+            }
+
+            if best_any is None:
+                best_any = candidate
+            else:
+                best_prob = best_any["probability"]
+                if prob > best_prob + 1e-12 or (abs(prob - best_prob) <= 1e-12 and move < best_any["move"]):
+                    best_any = candidate
+
+            if prob + 1e-12 < target_prob:
+                continue
+            if best_reaching is None:
+                best_reaching = candidate
+            else:
+                if move < best_reaching["move"] - 1e-12 or (
+                    abs(move - best_reaching["move"]) <= 1e-12
+                    and prob > best_reaching["probability"] + 1e-12
+                ):
+                    best_reaching = candidate
+
+    chosen = best_reaching or best_any or {
+        "lambda_home": float(lambda_home),
+        "lambda_away": float(lambda_away),
+        "home_scale": 1.0,
+        "away_scale": 1.0,
+        "probability": float(base_prob),
+        "move": 0.0,
+    }
+    chosen["target_probability"] = float(target_prob)
+    chosen["target_reached"] = bool(best_reaching)
+    return chosen
+
+
+def _build_target_hypotheses(home, away, target_home, target_away, lambda_home, lambda_away, shift_data, sim):
+    home_req = shift_data["lambda_home"]
+    away_req = shift_data["lambda_away"]
+    home_delta = home_req - float(lambda_home)
+    away_delta = away_req - float(lambda_away)
+    home_delta_pct = (home_delta / max(0.01, float(lambda_home))) * 100.0
+    away_delta_pct = (away_delta / max(0.01, float(lambda_away))) * 100.0
+
+    notes = []
+    if home_delta_pct >= 4.0:
+        notes.append(
+            f"{home} needs about +{home_delta_pct:.1f}% attacking output (+{home_delta:.2f} xG) from cleaner final-third creation and better shot quality."
+        )
+    elif home_delta_pct <= -4.0:
+        notes.append(
+            f"{home} should accept a lower-volume attack ({home_delta_pct:.1f}% xG) and prioritize game control once leading."
+        )
+
+    if away_delta_pct >= 4.0:
+        notes.append(
+            f"{away} needs about +{away_delta_pct:.1f}% attacking output (+{away_delta:.2f} xG), likely requiring transition chances and set-piece efficiency."
+        )
+    elif away_delta_pct <= -4.0:
+        notes.append(
+            f"{away} must be limited to about {away_delta_pct:.1f}% below current attacking expectation through compact rest-defense and fewer central entries."
+        )
+
+    target_result = _result_from_score(f"{target_home}-{target_away}")
+    if target_result == "Home":
+        notes.append(f"Game-state requirement: {home} should score first to force {away} to open up.")
+    elif target_result == "Away":
+        notes.append(f"Game-state requirement: {away} should score first so the match shifts toward their preferred transition profile.")
+    else:
+        notes.append("Game-state requirement: both teams must avoid late risk and keep chance quality moderate after 60'.")
+
+    progression = sim.get("progression_context", {}) if isinstance(sim, dict) else {}
+    home_prog_adj = _safe_float((progression or {}).get("home_adjustment"), 0.0) or 0.0
+    away_prog_adj = _safe_float((progression or {}).get("away_adjustment"), 0.0) or 0.0
+    if home_delta_pct > 4.0 and home_prog_adj < 0:
+        notes.append(
+            f"{home} currently has negative progression adjustment ({home_prog_adj * 100:.1f}%), so they need to improve vertical progression to hit the target score."
+        )
+    if away_delta_pct > 4.0 and away_prog_adj < 0:
+        notes.append(
+            f"{away} currently has negative progression adjustment ({away_prog_adj * 100:.1f}%), so direct attacks must be sharper than baseline."
+        )
+
+    fatigue = sim.get("fatigue_context", {}) if isinstance(sim, dict) else {}
+    home_fatigue = _safe_float((fatigue or {}).get("home_attack_penalty"), 0.0) or 0.0
+    away_fatigue = _safe_float((fatigue or {}).get("away_attack_penalty"), 0.0) or 0.0
+    if home_delta_pct > 4.0 and home_fatigue > 0.01:
+        notes.append(f"{home} also needs to offset current fatigue penalty ({home_fatigue * 100:.1f}%) by maintaining intensity across both halves.")
+    if away_delta_pct > 4.0 and away_fatigue > 0.01:
+        notes.append(f"{away} also needs to offset current fatigue penalty ({away_fatigue * 100:.1f}%) to sustain chance creation.")
+
+    key_matchups = sim.get("key_matchups", []) if isinstance(sim, dict) else []
+    if key_matchups:
+        notes.append(f"Key duel swing to watch: {key_matchups[0]}")
+
+    unique = []
+    seen = set()
+    for item in notes:
+        s = str(item).strip()
+        if s and s not in seen:
+            seen.add(s)
+            unique.append(s)
+    return unique[:5]
+
+
+def analyze_target_score_scenario(home, away, sim, target_score, max_goals=10):
+    parsed = _parse_score_pair(target_score)
+    if parsed is None:
+        return {
+            "error": "invalid_target_score",
+            "input": target_score,
+            "expected_format": "H-A",
+        }
+
+    target_home, target_away = parsed
+    lambda_home = float((sim or {}).get("expected_goals_home", 1.5))
+    lambda_away = float((sim or {}).get("expected_goals_away", 1.2))
+
+    grid_goals = max(int(max_goals), target_home + 6, target_away + 6, 12)
+    matrix = _build_poisson_matrix(lambda_home, lambda_away, max_goals=grid_goals)
+
+    rows = []
+    for h in range(grid_goals):
+        for a in range(grid_goals):
+            rows.append((h, a, matrix[h][a]))
+    rows.sort(key=lambda x: x[2], reverse=True)
+
+    rank = None
+    for idx, (h, a, _) in enumerate(rows, start=1):
+        if h == target_home and a == target_away:
+            rank = idx
+            break
+
+    current_prob = _score_probability(lambda_home, lambda_away, target_home, target_away)
+    realism_band = _target_realism_band(current_prob * 100.0, rank)
+    top5 = [{"score": f"{h}-{a}", "probability": round(float(p) * 100.0, 2)} for h, a, p in rows[:5]]
+
+    shift_data = _search_reasonable_shift(lambda_home, lambda_away, target_home, target_away)
+    shifted_home = float(shift_data["lambda_home"])
+    shifted_away = float(shift_data["lambda_away"])
+    shifted_prob = float(shift_data["probability"])
+
+    xg_shift = {
+        "probability_goal": round(float(shift_data["target_probability"]) * 100.0, 2),
+        "goal_reached_with_reasonable_shift": bool(shift_data["target_reached"]),
+        "probability_after_shift": round(shifted_prob * 100.0, 2),
+        "home_xg_current": round(lambda_home, 3),
+        "away_xg_current": round(lambda_away, 3),
+        "home_xg_required": round(shifted_home, 3),
+        "away_xg_required": round(shifted_away, 3),
+        "home_xg_change_pct": round(((shifted_home / max(0.01, lambda_home)) - 1.0) * 100.0, 1),
+        "away_xg_change_pct": round(((shifted_away / max(0.01, lambda_away)) - 1.0) * 100.0, 1),
+    }
+
+    hypotheses = _build_target_hypotheses(
+        home=home,
+        away=away,
+        target_home=target_home,
+        target_away=target_away,
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
+        shift_data=shift_data,
+        sim=sim,
+    )
+
+    return {
+        "target_score": f"{target_home}-{target_away}",
+        "target_result": _result_from_score(f"{target_home}-{target_away}"),
+        "current_probability": round(current_prob * 100.0, 2),
+        "rank_in_score_grid": int(rank) if rank is not None else None,
+        "realism_band": realism_band,
+        "top5_scores_now": top5,
+        "xg_shift_scenario": xg_shift,
+        "hypotheses": hypotheses,
+        "assumptions": [
+            "Uses current expected-goal surface from the active model output.",
+            "Search is constrained to roughly +/-28% xG shift per side to keep scenarios realistic.",
+            "Hypotheses are tactical interpretations of xG shift, not guaranteed outcomes.",
+        ],
+    }
+
+
 def _pick_result_from_probs(home_prob, draw_prob, away_prob):
     if home_prob > away_prob and home_prob > draw_prob:
         return "Home"
@@ -442,6 +709,305 @@ def _fmt_pct(value, digits=1):
     if num is None:
         return "N/A"
     return f"{num:.{digits}f}%"
+
+
+def _clamp01(value):
+    return max(0.0, min(1.0, float(value)))
+
+
+def _extract_player_label(items):
+    if not items:
+        return None
+    raw = str(items[0]).strip()
+    if not raw:
+        return None
+    return raw.split("(", 1)[0].strip()
+
+
+def _norm_share(value, scale):
+    return float(math.tanh(max(0.0, float(value)) / max(1e-9, float(scale))))
+
+
+def _team_scenario_inputs(team_name, lambda_for, flow_team, flow_opp, squad_team, prog_team):
+    ppda_team = _safe_float(_pick_first(flow_team, ["calc_PPDA", "PPDA"]), 8.0)
+    ppda_opp = _safe_float(_pick_first(flow_opp, ["calc_PPDA", "PPDA"]), 8.0)
+    field_tilt = _safe_float(_pick_first(flow_team, ["calc_FieldTilt_Pct"]), 0.5)
+    if field_tilt is not None and field_tilt > 1.5:
+        field_tilt = field_tilt / 100.0
+    field_tilt = _clamp01(field_tilt if field_tilt is not None else 0.5)
+    high_error_rate = _safe_float(_pick_first(flow_team, ["calc_HighError_Rate"]), 12.0)
+    directness = _safe_float(_pick_first(flow_team, ["calc_Directness"]), 0.08)
+    big_chance_diff = _safe_float(_pick_first(flow_team, ["calc_BigChance_Diff"]), 0.0)
+
+    possession = _safe_float(_pick_first(squad_team, ["Poss", "averageBallPossession", "Possession"]), 50.0)
+    if possession is not None and possession <= 1.5:
+        possession = possession * 100.0
+
+    xt_proxy = _safe_float((prog_team or {}).get("xt_proxy"), 0.45)
+    counter_index = _safe_float((prog_team or {}).get("counter_punch_index"), 0.25)
+    u_shape_risk = _safe_float((prog_team or {}).get("u_shape_risk"), 0.35)
+    deep_completion = _safe_float((prog_team or {}).get("deep_completion_proxy"), 3.0)
+    progressive_carry = _safe_float((prog_team or {}).get("prg_carry_dist"), 4.5)
+    big_created_p90 = _safe_float((prog_team or {}).get("big_created_p90"), 1.6)
+    inside_box_shots_p90 = _safe_float((prog_team or {}).get("inside_box_shots_p90"), 4.5)
+    fast_breaks_p90 = _safe_float((prog_team or {}).get("fast_breaks_p90"), 1.2)
+    corners_p90 = _safe_float((prog_team or {}).get("corners_p90"), 4.5)
+    long_balls_p90 = _safe_float((prog_team or {}).get("long_balls_p90"), 28.0)
+    shots_on_target_p90 = _safe_float((prog_team or {}).get("shots_on_target_p90"), 3.2)
+
+    pressing_edge = _clamp01((ppda_opp - ppda_team) / max(2.5, ppda_opp))
+    forced_error_norm = _norm_share(high_error_rate, 22.0)
+    directness_norm = _clamp01(directness / 0.18)
+    possession_norm = _clamp01((possession or 50.0) / 100.0)
+    deep_norm = _norm_share(deep_completion, 5.5)
+    carry_norm = _norm_share(progressive_carry, 7.5)
+    big_created_norm = _norm_share(big_created_p90, 2.5)
+    inside_box_norm = _norm_share(inside_box_shots_p90, 6.0)
+    fast_break_norm = _norm_share(fast_breaks_p90, 2.8)
+    corners_norm = _norm_share(corners_p90, 5.0)
+    long_ball_norm = _norm_share(long_balls_p90, 34.0)
+    sot_norm = _norm_share(shots_on_target_p90, 4.0)
+    score_prob = 1.0 - math.exp(-max(0.0, float(lambda_for)))
+
+    return {
+        "team": team_name,
+        "lambda_for": float(lambda_for),
+        "score_prob": float(score_prob),
+        "ppda_team": float(ppda_team),
+        "ppda_opp": float(ppda_opp),
+        "field_tilt": float(field_tilt),
+        "high_error_rate": float(high_error_rate),
+        "directness": float(directness),
+        "big_chance_diff": float(big_chance_diff),
+        "possession": float(possession if possession is not None else 50.0),
+        "xt_proxy": float(xt_proxy),
+        "counter_index": float(counter_index),
+        "u_shape_risk": float(u_shape_risk),
+        "deep_completion": float(deep_completion),
+        "progressive_carry": float(progressive_carry),
+        "big_created_p90": float(big_created_p90),
+        "inside_box_shots_p90": float(inside_box_shots_p90),
+        "fast_breaks_p90": float(fast_breaks_p90),
+        "corners_p90": float(corners_p90),
+        "long_balls_p90": float(long_balls_p90),
+        "shots_on_target_p90": float(shots_on_target_p90),
+        "pressing_edge": float(pressing_edge),
+        "forced_error_norm": float(forced_error_norm),
+        "directness_norm": float(directness_norm),
+        "possession_norm": float(possession_norm),
+        "deep_norm": float(deep_norm),
+        "carry_norm": float(carry_norm),
+        "big_created_norm": float(big_created_norm),
+        "inside_box_norm": float(inside_box_norm),
+        "fast_break_norm": float(fast_break_norm),
+        "corners_norm": float(corners_norm),
+        "long_ball_norm": float(long_ball_norm),
+        "sot_norm": float(sot_norm),
+    }
+
+
+def _scenario_confidence(input_data):
+    checks = [
+        input_data.get("ppda_team"),
+        input_data.get("ppda_opp"),
+        input_data.get("field_tilt"),
+        input_data.get("xt_proxy"),
+        input_data.get("counter_index"),
+        input_data.get("deep_completion"),
+        input_data.get("corners_p90"),
+        input_data.get("long_balls_p90"),
+    ]
+    available = sum(1 for x in checks if x is not None)
+    ratio = available / max(1, len(checks))
+    if ratio >= 0.85:
+        return "high"
+    if ratio >= 0.60:
+        return "medium"
+    return "low"
+
+
+def _build_team_tactical_scenarios(team_inputs, opp_inputs, creator_name=None):
+    t = team_inputs
+    o = opp_inputs
+    confidence = _scenario_confidence(t)
+    creator = creator_name or "เพลย์เมกเกอร์"
+
+    # Scenario A: High press -> fast recognition -> long/high release to free winger.
+    event_a = _clamp01(
+        0.10
+        + (0.27 * t["pressing_edge"])
+        + (0.17 * t["forced_error_norm"])
+        + (0.12 * t["counter_index"])
+        + (0.10 * t["directness_norm"])
+        + (0.08 * t["field_tilt"])
+    )
+    conv_a = _clamp01(
+        0.09
+        + (0.13 * t["deep_norm"])
+        + (0.12 * t["score_prob"])
+        + (0.07 * t["big_created_norm"])
+        + (0.04 * t["carry_norm"])
+    )
+    goal_a = event_a * conv_a
+
+    # Scenario B: Absorb pressure -> counter attack into weak-side channel.
+    transition_window = _clamp01((o["field_tilt"] - t["field_tilt"]) + 0.22)
+    event_b = _clamp01(
+        0.08
+        + (0.30 * t["counter_index"])
+        + (0.15 * t["fast_break_norm"])
+        + (0.10 * t["directness_norm"])
+        + (0.10 * transition_window)
+    )
+    conv_b = _clamp01(
+        0.08
+        + (0.15 * t["score_prob"])
+        + (0.08 * t["inside_box_norm"])
+        + (0.06 * t["carry_norm"])
+        + (0.05 * t["sot_norm"])
+    )
+    goal_b = event_b * conv_b
+
+    # Scenario C: Sustained territory -> set-piece/second-ball shot.
+    set_piece_base = _clamp01((t["field_tilt"] * 0.8) + (t["possession_norm"] * 0.2))
+    event_c = _clamp01(
+        0.07
+        + (0.22 * t["corners_norm"])
+        + (0.12 * set_piece_base)
+        + (0.10 * t["inside_box_norm"])
+        + (0.06 * max(0.0, (t["big_chance_diff"] + 10.0) / 25.0))
+    )
+    conv_c = _clamp01(
+        0.07
+        + (0.11 * t["score_prob"])
+        + (0.08 * t["big_created_norm"])
+        + (0.05 * t["forced_error_norm"])
+    )
+    goal_c = event_c * conv_c
+
+    scenarios = [
+        {
+            "team": t["team"],
+            "scenario_code": "press_to_wide_release",
+            "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
+            "probability_pct": round(event_a * 100.0, 2),
+            "goal_probability_pct": round(goal_a * 100.0, 2),
+            "confidence": confidence,
+            "sequence": [
+                f"{t['team']} บีบด้วย PPDA {t['ppda_team']:.2f} เทียบคู่แข่ง {t['ppda_opp']:.2f}",
+                f"{creator} อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
+                "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
+                "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที",
+            ],
+            "statistical_basis": {
+                "ppda_team": round(t["ppda_team"], 3),
+                "ppda_opponent": round(t["ppda_opp"], 3),
+                "high_error_rate": round(t["high_error_rate"], 3),
+                "directness": round(t["directness"], 4),
+                "xt_proxy": round(t["xt_proxy"], 3),
+                "counter_punch_index": round(t["counter_index"], 3),
+                "long_balls_p90": round(t["long_balls_p90"], 2),
+                "expected_goals_team": round(t["lambda_for"], 3),
+            },
+        },
+        {
+            "team": t["team"],
+            "scenario_code": "counter_after_absorb",
+            "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
+            "probability_pct": round(event_b * 100.0, 2),
+            "goal_probability_pct": round(goal_b * 100.0, 2),
+            "confidence": confidence,
+            "sequence": [
+                f"{t['team']} ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
+                "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
+                "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box",
+            ],
+            "statistical_basis": {
+                "counter_punch_index": round(t["counter_index"], 3),
+                "fast_breaks_p90": round(t["fast_breaks_p90"], 2),
+                "field_tilt_team": round(t["field_tilt"], 3),
+                "field_tilt_opponent": round(o["field_tilt"], 3),
+                "inside_box_shots_p90": round(t["inside_box_shots_p90"], 2),
+                "expected_goals_team": round(t["lambda_for"], 3),
+            },
+        },
+        {
+            "team": t["team"],
+            "scenario_code": "set_piece_second_ball",
+            "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
+            "probability_pct": round(event_c * 100.0, 2),
+            "goal_probability_pct": round(goal_c * 100.0, 2),
+            "confidence": confidence,
+            "sequence": [
+                f"{t['team']} ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
+                "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
+                "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง",
+            ],
+            "statistical_basis": {
+                "corners_p90": round(t["corners_p90"], 2),
+                "field_tilt": round(t["field_tilt"], 3),
+                "inside_box_shots_p90": round(t["inside_box_shots_p90"], 2),
+                "big_created_p90": round(t["big_created_p90"], 2),
+                "expected_goals_team": round(t["lambda_for"], 3),
+            },
+        },
+    ]
+    return scenarios
+
+
+def build_tactical_scenario_report(
+    home_team,
+    away_team,
+    sim,
+    home_flow,
+    away_flow,
+    home_squad,
+    away_squad,
+    home_prog,
+    away_prog,
+    home_top_rated,
+    away_top_rated,
+    max_scenarios=6,
+):
+    lambda_home = _safe_float((sim or {}).get("expected_goals_home"), 1.35)
+    lambda_away = _safe_float((sim or {}).get("expected_goals_away"), 1.20)
+
+    home_inputs = _team_scenario_inputs(home_team, lambda_home, home_flow, away_flow, home_squad, home_prog)
+    away_inputs = _team_scenario_inputs(away_team, lambda_away, away_flow, home_flow, away_squad, away_prog)
+
+    home_creator = _extract_player_label(home_top_rated)
+    away_creator = _extract_player_label(away_top_rated)
+
+    scenarios = []
+    scenarios.extend(_build_team_tactical_scenarios(home_inputs, away_inputs, creator_name=home_creator))
+    scenarios.extend(_build_team_tactical_scenarios(away_inputs, home_inputs, creator_name=away_creator))
+    scenarios.sort(key=lambda x: (x.get("goal_probability_pct", 0.0), x.get("probability_pct", 0.0)), reverse=True)
+    scenarios = scenarios[: max(1, int(max_scenarios))]
+
+    for i, sc in enumerate(scenarios, start=1):
+        sc["rank"] = i
+        if sc.get("goal_probability_pct", 0.0) >= 10.0:
+            sc["impact_tier"] = "high"
+        elif sc.get("goal_probability_pct", 0.0) >= 6.0:
+            sc["impact_tier"] = "medium"
+        else:
+            sc["impact_tier"] = "low"
+
+    return {
+        "method": "heuristic_event_model_v1",
+        "description": "Event probabilities estimated from PPDA, field tilt, progression proxies, and expected-goal surface.",
+        "match": f"{home_team} vs {away_team}",
+        "model_expected_goals": {
+            "home": round(float(lambda_home), 3),
+            "away": round(float(lambda_away), 3),
+        },
+        "scenarios": scenarios,
+        "notes": [
+            "probability_pct = chance that this tactical pattern occurs at least once in the match.",
+            "goal_probability_pct = chance that the same tactical pattern leads to at least one goal.",
+            "These are statistically-guided scenario probabilities, not guaranteed outcomes.",
+        ],
+    }
 
 
 def _pick_first(row, columns, default=None):
@@ -749,13 +1315,23 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
         return _poisson_summary(l_home, l_away)
 
 
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: python analyze_match.py <HomeTeam> <AwayTeam>")
-        return
+def _parse_args(argv):
+    parser = argparse.ArgumentParser(description="Analyze a football match and export prediction JSON.")
+    parser.add_argument("home_team", help="Home team name")
+    parser.add_argument("away_team", help="Away team name")
+    parser.add_argument(
+        "--target-score",
+        dest="target_score",
+        help="Optional desired score in H-A format (example: 2-1)",
+    )
+    return parser.parse_args(argv)
 
-    home = sys.argv[1].strip()
-    away = sys.argv[2].strip()
+
+def main():
+    args = _parse_args(sys.argv[1:])
+
+    home = args.home_team.strip()
+    away = args.away_team.strip()
     print(f"Analyzing {home} vs {away} ...")
 
     home_league = find_team_league(home)
@@ -786,12 +1362,43 @@ def main():
     result_from_score = _result_from_score(score_aligned)
     final_result = result_from_score or result_1x2
 
+    target_score_analysis = None
+    if args.target_score:
+        target_score_analysis = analyze_target_score_scenario(
+            home=home,
+            away=away,
+            sim=sim,
+            target_score=args.target_score,
+            max_goals=10,
+        )
+        if target_score_analysis.get("error"):
+            print(f"[Warning] Target score input '{args.target_score}' is invalid. Use H-A format (example: 2-1).")
+        else:
+            print(
+                f"[Info] Target score scenario for {target_score_analysis['target_score']}: "
+                f"{target_score_analysis['current_probability']:.2f}% baseline probability."
+            )
+
     home_flow = get_game_flow_stats(home, league)
     away_flow = get_game_flow_stats(away, league)
     home_squad = get_squad_stats(home, league)
     away_squad = get_squad_stats(away, league)
     home_top_rated, home_top_scorers = get_top_players(home, league, top_n=3)
     away_top_rated, away_top_scorers = get_top_players(away, league, top_n=3)
+    tactical_scenarios = build_tactical_scenario_report(
+        home_team=home,
+        away_team=away,
+        sim=sim,
+        home_flow=home_flow,
+        away_flow=away_flow,
+        home_squad=home_squad,
+        away_squad=away_squad,
+        home_prog=home_prog,
+        away_prog=away_prog,
+        home_top_rated=home_top_rated,
+        away_top_rated=away_top_rated,
+        max_scenarios=6,
+    )
 
     analysis_file = _analysis_path(home, away)
     analysis_generated = False
@@ -862,12 +1469,20 @@ def main():
         "Pred_Result_1X2": result_1x2,
         "Pred_Result_From_Score": result_from_score,
         "Pred_Aligned_Score_Prob": float(aligned_prob * 100.0),
+        "Expected_Goals_Home": float(sim.get("expected_goals_home", 0.0)),
+        "Expected_Goals_Away": float(sim.get("expected_goals_away", 0.0)),
+        "Base_Expected_Goals_Home": _safe_float(sim.get("base_exp_home"), None),
+        "Base_Expected_Goals_Away": _safe_float(sim.get("base_exp_away"), None),
+        "Target_Score_Input": args.target_score,
+        "Target_Score_Analysis": target_score_analysis,
         "Model_Version": sim.get("model_version", "unknown"),
         "QC_Flags": qc_flags,
         "Context_Header": context_header,
         "Bet_Data": bet_data,
         "Bet_Detail": bet_detail,
         "Progression_Data": {"home": home_prog, "away": away_prog},
+        "Tactical_Scenarios": tactical_scenarios,
+        "Calibration_Context": sim.get("calibration_context", {}),
         "AI_Report_Generated": analysis_generated,
         "AI_Report_Path": analysis_file if analysis_generated else None,
         "AI_Report_Error": None if analysis_generated else analysis_error,

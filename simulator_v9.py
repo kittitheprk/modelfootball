@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -42,6 +43,7 @@ TEAM_NAME_ALIASES = {
 }
 
 _CHAR_CACHE = {}
+CALIBRATION_PATH = "model_calibration.json"
 
 
 def _safe_float(value, default=0.0):
@@ -203,6 +205,109 @@ def _top_scores(prob_matrix, top_n=3):
             flat.append((h, a, prob_matrix[h, a]))
     flat.sort(key=lambda x: x[2], reverse=True)
     return flat[:top_n]
+
+
+def _load_model_calibration(path=CALIBRATION_PATH):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _team_calibration_entry(by_team, team_name):
+    if not by_team or not team_name:
+        return None
+
+    direct = by_team.get(team_name)
+    if isinstance(direct, dict):
+        return direct
+
+    canonical = _canonical_team_name(team_name)
+    if canonical != team_name:
+        direct = by_team.get(canonical)
+        if isinstance(direct, dict):
+            return direct
+
+    target = _norm_text(team_name)
+    for key, value in by_team.items():
+        if _norm_text(key) == target and isinstance(value, dict):
+            return value
+    return None
+
+
+def _blend_scale(raw_scale, reliability):
+    base = _safe_float(raw_scale, 1.0)
+    rel = _clip(_safe_float(reliability, 0.0), 0.0, 1.0)
+    return 1.0 + ((base - 1.0) * rel)
+
+
+def _apply_model_calibration(lambda_home, lambda_away, calibration, league, home_team, away_team):
+    ctx = {
+        "enabled": False,
+        "path": CALIBRATION_PATH,
+        "home_multiplier": 1.0,
+        "away_multiplier": 1.0,
+        "global_home_scale": 1.0,
+        "global_away_scale": 1.0,
+        "league_home_scale": 1.0,
+        "league_away_scale": 1.0,
+    }
+    if not calibration or not isinstance(calibration, dict):
+        return lambda_home, lambda_away, ctx
+
+    g = calibration.get("global", {}) if isinstance(calibration.get("global"), dict) else {}
+    global_home_scale = _blend_scale(g.get("home_scale"), g.get("reliability", 1.0))
+    global_away_scale = _blend_scale(g.get("away_scale"), g.get("reliability", 1.0))
+    ctx["global_home_scale"] = global_home_scale
+    ctx["global_away_scale"] = global_away_scale
+
+    league_map = calibration.get("by_league", {}) if isinstance(calibration.get("by_league"), dict) else {}
+    league_row = league_map.get(league) if league else None
+    if not isinstance(league_row, dict) and league:
+        target = _norm_text(league.replace("_", " "))
+        for key, val in league_map.items():
+            if _norm_text(str(key).replace("_", " ")) == target and isinstance(val, dict):
+                league_row = val
+                break
+    if not isinstance(league_row, dict):
+        league_row = {}
+    league_home_scale = _blend_scale(league_row.get("home_scale"), league_row.get("reliability", 1.0))
+    league_away_scale = _blend_scale(league_row.get("away_scale"), league_row.get("reliability", 1.0))
+    ctx["league_home_scale"] = league_home_scale
+    ctx["league_away_scale"] = league_away_scale
+
+    home_multiplier = global_home_scale * league_home_scale
+    away_multiplier = global_away_scale * league_away_scale
+
+    by_team = calibration.get("by_team", {}) if isinstance(calibration.get("by_team"), dict) else {}
+    h_team = _team_calibration_entry(by_team, home_team)
+    a_team = _team_calibration_entry(by_team, away_team)
+
+    if isinstance(h_team, dict) and isinstance(a_team, dict):
+        h_attack = _blend_scale(h_team.get("attack_scale"), h_team.get("reliability"))
+        h_defense = _blend_scale(h_team.get("defense_scale"), h_team.get("reliability"))
+        a_attack = _blend_scale(a_team.get("attack_scale"), a_team.get("reliability"))
+        a_defense = _blend_scale(a_team.get("defense_scale"), a_team.get("reliability"))
+
+        home_multiplier *= h_attack * a_defense
+        away_multiplier *= a_attack * h_defense
+
+        ctx["home_team_attack_scale"] = h_attack
+        ctx["home_team_defense_scale"] = h_defense
+        ctx["away_team_attack_scale"] = a_attack
+        ctx["away_team_defense_scale"] = a_defense
+
+    home_multiplier = _clip(home_multiplier, 0.90, 1.12)
+    away_multiplier = _clip(away_multiplier, 0.90, 1.12)
+    ctx["enabled"] = True
+    ctx["home_multiplier"] = float(home_multiplier)
+    ctx["away_multiplier"] = float(away_multiplier)
+
+    return lambda_home * home_multiplier, lambda_away * away_multiplier, ctx
 
 
 def _clean_player_name(name):
@@ -1031,6 +1136,12 @@ def simulate_match(
         "home_attack_penalty": 0.0,
         "away_attack_penalty": 0.0,
     }
+    calibration_ctx = {
+        "enabled": False,
+        "path": CALIBRATION_PATH,
+        "home_multiplier": 1.0,
+        "away_multiplier": 1.0,
+    }
     progression_ctx = {
         "home_xt_proxy": None,
         "away_xt_proxy": None,
@@ -1141,6 +1252,16 @@ def simulate_match(
         # v9 signals are additive; if anything fails, we keep v8-compatible behavior.
         pass
 
+    calibration = _load_model_calibration(CALIBRATION_PATH)
+    lambda_home, lambda_away, calibration_ctx = _apply_model_calibration(
+        lambda_home=lambda_home,
+        lambda_away=lambda_away,
+        calibration=calibration,
+        league=league,
+        home_team=home_team,
+        away_team=away_team,
+    )
+
     lambda_home = _clip(lambda_home, 0.25, 3.8)
     lambda_away = _clip(lambda_away, 0.25, 3.8)
 
@@ -1174,6 +1295,10 @@ def simulate_match(
         bonus_parts.append(
             f"Fatigue H-{home_fatigue['attack_penalty']*100:.1f}% A-{away_fatigue['attack_penalty']*100:.1f}%"
         )
+    if calibration_ctx.get("enabled"):
+        bonus_parts.append(
+            f"Calibration Hx{calibration_ctx.get('home_multiplier', 1.0):.3f} Ax{calibration_ctx.get('away_multiplier', 1.0):.3f}"
+        )
     bonus_parts.append(f"DC rho {rho:.3f}")
 
     return {
@@ -1190,6 +1315,7 @@ def simulate_match(
         "model_version": "v9",
         "lineup_context": lineup_ctx,
         "fatigue_context": fatigue_ctx,
+        "calibration_context": calibration_ctx,
         "progression_context": progression_ctx,
         "key_matchups": key_matchups,
     }

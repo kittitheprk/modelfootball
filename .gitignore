@@ -255,3 +255,8 @@ docs/_build/
 
 gemini_key.txt
 
+
+Start-Process output_opta/
+repair_targets.json
+output_opta/
+repair_targets.json

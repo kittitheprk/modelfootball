@@ -81,8 +81,9 @@ python scripts/system_check.py
 2. อัปเดตข้อมูลล่าสุด (แนะนำก่อนวิเคราะห์)
 
 ```bash
-python scripts/run_update.py --preflight-only
-python scripts/run_update.py
+# Main pipeline file
+python update_football_data.py --headless --preflight-only
+python update_football_data.py --headless
 ```
 
 3. เตรียม context ก่อนแข่งใน `match_context.txt` (ถ้ามี)
@@ -148,11 +149,23 @@ python update_tracker.py clean
 # อัปเดตผล bet (อิง Actual_Score จาก Predictions)
 python update_tracker.py update_bets
 
+# สร้าง calibration จากผลจริงเพื่อปรับโมเดลรอบถัดไป
+python update_tracker.py calibrate
+
+# ประเมินคุณภาพโมเดล (Brier/LogLoss/MAE + quality gates)
+python update_tracker.py evaluate
+
+# ปิดลูปหลังแข่งอัตโนมัติ: update_bets -> calibrate -> evaluate
+python update_tracker.py close_loop
+
+# วิเคราะห์แบบย้อนกลับสกอร์เป้าหมาย
+python analyze_match.py <HomeTeam> <AwayTeam> --target-score 0-2
+
 # pipeline โหมดดูขั้นตอนอย่างเดียว
-python scripts/run_update.py --dry-run
+python update_football_data.py --headless --dry-run
 
 # pipeline โหมดไปต่อแม้บางสเต็ปล้ม
-python scripts/run_update.py --continue-on-error
+python update_football_data.py --headless --continue-on-error
 ```
 
 ## Output ที่จะได้
@@ -161,9 +174,15 @@ python scripts/run_update.py --continue-on-error
   - ความน่าจะเป็น Home/Draw/Away
   - สกอร์ที่น่าจะเป็นมากที่สุด
   - `Bet_Data` และ `Bet_Detail`
+  - `Tactical_Scenarios` (ฉากเกมเชิงแท็กติกพร้อมโอกาสเกิดและโอกาสนำไปสู่ประตู)
+- `model_calibration.json`
+  - ค่าปรับ global/league/team จากผลจริง
+- `model_performance.json`
+  - ตัวชี้วัดคุณภาพโมเดล + quality gates
 - `analyses/analysis_<Home>_<Away>.md` (เมื่อ Gemini ตอบสำเร็จ)
 - `prediction_tracker.xlsx`
   - แผ่นหลัก: `Predictions`, `bet data`, `bet predic`, `bet ev`, `Summary`
+  - แผ่นประเมิน: `Model Eval`, `Model Eval League`, `Model Eval Segments`
 - `backups/prediction_tracker_backup_*.xlsx` (สำรองอัตโนมัติก่อนเขียนไฟล์)
 
 ## การทดสอบ
