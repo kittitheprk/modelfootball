@@ -26,6 +26,7 @@ RAW_SCRIPTS_TO_RUN = [
     ("sofascore_team_data/scrape_sofascore.py", "Scraping SofaScore Team Data (raw only)..."),
     ("scripts/scrape_sofaplayer.py", "Scraping Detailed Player Season Stats..."),
     ("Match Logs/scrape_match_logs.py", "Scraping Match Logs..."),
+    ("scrape_stats_opta.py", "Scraping OPTA Advanced Stats (theanalyst.com)..."),
     ("scripts/validate_raw_columns.py", "Validating RAW columns against expected schema..."),
 ]
 

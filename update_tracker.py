@@ -66,6 +66,17 @@ def _normalize_date_key(value):
     return str(value).strip()[:10]
 
 
+def _first_nonblank(row, candidates):
+    if row is None:
+        return None
+    for col in candidates:
+        if col in row.index:
+            val = row.get(col)
+            if not _is_blank_value(val):
+                return val
+    return None
+
+
 def _duplicate_mask(df, row_date, row_match, row_home=None, row_away=None):
     if df is None or df.empty:
         return pd.Series([], dtype=bool)
@@ -82,9 +93,20 @@ def _duplicate_mask(df, row_date, row_match, row_home=None, row_away=None):
     if mask.any():
         return mask
 
-    if row_home is not None and row_away is not None and "Home_Team" in df.columns and "Away_Team" in df.columns:
-        home_mask = df["Home_Team"].astype(str).apply(_normalize_team_key) == _normalize_team_key(row_home)
-        away_mask = df["Away_Team"].astype(str).apply(_normalize_team_key) == _normalize_team_key(row_away)
+    home_col = None
+    away_col = None
+    if "Home_Team" in df.columns:
+        home_col = "Home_Team"
+    elif "Home" in df.columns:
+        home_col = "Home"
+    if "Away_Team" in df.columns:
+        away_col = "Away_Team"
+    elif "Away" in df.columns:
+        away_col = "Away"
+
+    if row_home is not None and row_away is not None and home_col and away_col:
+        home_mask = df[home_col].astype(str).apply(_normalize_team_key) == _normalize_team_key(row_home)
+        away_mask = df[away_col].astype(str).apply(_normalize_team_key) == _normalize_team_key(row_away)
         mask = date_mask & home_mask & away_mask
     return mask
 
@@ -352,8 +374,10 @@ def _evaluate_prediction_rows(df):
             goal_diff_abs = abs(float((ph - pa) - (ah - aa)))
             exact_score = 1.0 if (ph == ah and pa == aa) else 0.0
 
-        exp_h = _safe_num(row.get("Expected_Goals_Home"), None)
-        exp_a = _safe_num(row.get("Expected_Goals_Away"), None)
+        exp_h_raw = _first_nonblank(row, ["Expected_Goals_Home", "xG_Home", "XG_Home"])
+        exp_a_raw = _first_nonblank(row, ["Expected_Goals_Away", "xG_Away", "XG_Away"])
+        exp_h = _safe_num(exp_h_raw, None)
+        exp_a = _safe_num(exp_a_raw, None)
         xg_mae = None
         if exp_h is not None and exp_a is not None and actual_score_pair is not None:
             ah, aa = actual_score_pair
@@ -439,47 +463,25 @@ def _evaluate_quality_gates(overall_metrics, gates=None):
     return out
 
 def _build_new_prediction_row(data):
-    qc_raw = data.get("QC_Flags", "")
-    if isinstance(qc_raw, list):
-        qc_text = " | ".join(str(x) for x in qc_raw)
-    else:
-        qc_text = "" if qc_raw is None else str(qc_raw)
-
-    ctx = data.get("Context_Header", {})
-    if isinstance(ctx, dict):
-        ctx_text = "; ".join([f"{k}={v}" for k, v in ctx.items() if v])
-    else:
-        ctx_text = str(ctx or "")
-
+    expected_home = round(float(data.get("Expected_Goals_Home", 0)), 2)
+    expected_away = round(float(data.get("Expected_Goals_Away", 0)), 2)
     return {
         "Date": data.get("Date", ""),
-        "Match": data.get("Match", ""),
-        "Match_Canonical": data.get("Match_Canonical", data.get("Match", "")),
         "League": data.get("League", ""),
-        "Home_Team": data.get("Home_Team", ""),
-        "Away_Team": data.get("Away_Team", ""),
-        "Home_Team_Canonical": data.get("Home_Team_Canonical", ""),
-        "Away_Team_Canonical": data.get("Away_Team_Canonical", ""),
-        "Pred_Home_Win%": data.get("Pred_Home_Win", ""),
-        "Pred_Draw%": data.get("Pred_Draw", ""),
-        "Pred_Away_Win%": data.get("Pred_Away_Win", ""),
+        "Home": data.get("Home_Team", ""),
+        "Away": data.get("Away_Team", ""),
+        "Home%": round(float(data.get("Pred_Home_Win", 0)), 1),
+        "Draw%": round(float(data.get("Pred_Draw", 0)), 1),
+        "Away%": round(float(data.get("Pred_Away_Win", 0)), 1),
         "Pred_Score": data.get("Pred_Score", ""),
         "Pred_Result": data.get("Pred_Result", ""),
-        "Pred_Score_Unconditional": data.get("Pred_Score_Unconditional", ""),
-        "Pred_Result_1X2": data.get("Pred_Result_1X2", data.get("Pred_Result", "")),
-        "Pred_Result_From_Score": data.get("Pred_Result_From_Score", ""),
-        "Expected_Goals_Home": data.get("Expected_Goals_Home"),
-        "Expected_Goals_Away": data.get("Expected_Goals_Away"),
-        "Base_Expected_Goals_Home": data.get("Base_Expected_Goals_Home"),
-        "Base_Expected_Goals_Away": data.get("Base_Expected_Goals_Away"),
-        "Target_Score_Input": data.get("Target_Score_Input"),
-        "QC_Flags": qc_text,
-        "Context_Header": ctx_text,
+        "xG_Home": expected_home,
+        "xG_Away": expected_away,
+        "Expected_Goals_Home": expected_home,
+        "Expected_Goals_Away": expected_away,
         "Actual_Score": None,
         "Actual_Result": None,
-        "Result_Correct": None,
-        "Score_Correct": None,
-        "Goal_Diff_Error": None,
+        "Correct": None,
         "Notes": None,
     }
 
@@ -507,8 +509,10 @@ def _build_calibration_from_predictions(df):
         if actual is None:
             continue
 
-        exp_h = _safe_num(row.get("Expected_Goals_Home"), None)
-        exp_a = _safe_num(row.get("Expected_Goals_Away"), None)
+        exp_h_raw = _first_nonblank(row, ["Expected_Goals_Home", "xG_Home", "XG_Home"])
+        exp_a_raw = _first_nonblank(row, ["Expected_Goals_Away", "xG_Away", "XG_Away"])
+        exp_h = _safe_num(exp_h_raw, None)
+        exp_a = _safe_num(exp_a_raw, None)
         if exp_h is None or exp_a is None:
             if pred_score is None:
                 continue
@@ -521,8 +525,8 @@ def _build_calibration_from_predictions(df):
 
         weight = _recency_weight(row.get("Date"), max_date=max_date, half_life_days=120.0)
         league = str(row.get("League", "")).strip() or "Unknown"
-        home_team = str(row.get("Home_Team", "")).strip()
-        away_team = str(row.get("Away_Team", "")).strip()
+        home_team = str(_first_nonblank(row, ["Home_Team", "Home"]) or "").strip()
+        away_team = str(_first_nonblank(row, ["Away_Team", "Away"]) or "").strip()
 
         l = league_acc.setdefault(league, {"home_sum": 0.0, "away_sum": 0.0, "w": 0.0, "n": 0})
         l["home_sum"] += res_h * weight
@@ -884,21 +888,18 @@ def save_new_prediction():
 
     print(f"Loading prediction: {data.get('Match', 'Unknown')}")
     new_row = _build_new_prediction_row(data)
-    bet_row = _build_bet_data_row(data)
-    predic_row = _best_bet_from_model(data)
 
     sheets = _load_all_sheets(excel_file)
     df_pred = sheets.get("Predictions", pd.DataFrame())
     df_pred = _ensure_columns(df_pred, list(new_row.keys()))
 
-    dup = _duplicate_mask(df_pred, new_row["Date"], new_row["Match"], new_row["Home_Team"], new_row["Away_Team"])
+    match_label = f"{new_row['Home']} vs {new_row['Away']}"
+    dup = _duplicate_mask(df_pred, new_row["Date"], match_label, new_row["Home"], new_row["Away"])
     if dup.any():
         preserve_cols = {
             "Actual_Score",
             "Actual_Result",
-            "Result_Correct",
-            "Score_Correct",
-            "Goal_Diff_Error",
+            "Correct",
             "Notes",
         }
         for col, val in new_row.items():
@@ -910,43 +911,6 @@ def save_new_prediction():
         df_pred = pd.concat([df_pred, pd.DataFrame([new_row])], ignore_index=True)
         print("[Info] Added row to Predictions.")
     sheets["Predictions"] = df_pred
-
-    if bet_row is not None:
-        df_bet = sheets.get("bet data", pd.DataFrame())
-        df_bet = _ensure_columns(df_bet, list(bet_row.keys()))
-        dup_bet = _duplicate_mask(df_bet, bet_row["Date"], bet_row["Match"])
-        if dup_bet.any():
-            for col, val in bet_row.items():
-                df_bet.loc[dup_bet, col] = val
-            print("[Info] Updated existing bet data row.")
-        else:
-            df_bet = pd.concat([df_bet, pd.DataFrame([bet_row])], ignore_index=True)
-            print("[Info] Added row to bet data.")
-        sheets["bet data"] = df_bet
-
-    if predic_row is not None:
-        df_predic = sheets.get("bet predic", pd.DataFrame())
-        df_predic = _ensure_columns(df_predic, list(predic_row.keys()))
-        dup_predic = _duplicate_mask(df_predic, predic_row["Date"], predic_row["Match"])
-        if dup_predic.any():
-            preserve_cols = {
-                "Actual_Score",
-                "Bet_Result",
-                "Odds",
-                "Implied_Prob",
-                "Edge",
-                "EV",
-                "Notes",
-            }
-            for col, val in predic_row.items():
-                if col in preserve_cols and _is_blank_value(val):
-                    continue
-                df_predic.loc[dup_predic, col] = val
-            print("[Info] Updated existing bet predic row.")
-        else:
-            df_predic = pd.concat([df_predic, pd.DataFrame([predic_row])], ignore_index=True)
-            print("[Info] Added row to bet predic.")
-        sheets["bet predic"] = df_predic
 
     backup_tracker(excel_file)
     _save_all_sheets(excel_file, sheets)
@@ -969,31 +933,23 @@ def calculate_summary_stats(filename="prediction_tracker.xlsx"):
     if total == 0:
         summary_df = pd.DataFrame(
             {
-                "Metric": ["Total Verified Matches", "Result Accuracy (%)", "Exact Score Accuracy (%)", "Avg Goal Diff Error"],
-                "Value": [0, 0.0, 0.0, 0.0],
+                "Metric": ["Total Verified Matches", "Result Accuracy (%)"],
+                "Value": [0, 0.0],
             }
         )
     else:
-        completed["Result_Correct"] = pd.to_numeric(completed.get("Result_Correct"), errors="coerce").fillna(0.0)
-        completed["Score_Correct"] = pd.to_numeric(completed.get("Score_Correct"), errors="coerce").fillna(0.0)
-        gd = pd.to_numeric(completed.get("Goal_Diff_Error"), errors="coerce")
+        correct_col = pd.to_numeric(completed.get("Correct"), errors="coerce").fillna(0.0)
         summary_df = pd.DataFrame(
             {
                 "Metric": [
                     "Total Verified Matches",
-                    "Correct Result (W/D/L)",
+                    "Correct Results",
                     "Result Accuracy (%)",
-                    "Exact Score Correct",
-                    "Exact Score Accuracy (%)",
-                    "Avg Goal Diff Error",
                 ],
                 "Value": [
                     total,
-                    int(completed["Result_Correct"].sum()),
-                    round(float(completed["Result_Correct"].mean() * 100.0), 2),
-                    int(completed["Score_Correct"].sum()),
-                    round(float(completed["Score_Correct"].mean() * 100.0), 2),
-                    round(float(gd.mean()), 2) if gd.notna().any() else 0.0,
+                    int(correct_col.sum()),
+                    round(float(correct_col.mean() * 100.0), 2),
                 ],
             }
         )

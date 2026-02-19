@@ -83,7 +83,14 @@ def _analysis_path(home, away):
 
 
 def _team_aliases(name):
-    items = {str(name).strip(), normalize_team_name(name), _canonical_team_name(name)}
+    raw_name = str(name).strip()
+    items = {raw_name, normalize_team_name(raw_name), _canonical_team_name(raw_name)}
+    base_norm = _normalize_text(raw_name)
+    for short_name, long_name in TEAM_NAME_MAP.items():
+        if _normalize_text(short_name) == base_norm:
+            items.add(long_name)
+        if _normalize_text(long_name) == base_norm:
+            items.add(short_name)
     out, seen = [], set()
     for item in items:
         key = _normalize_text(item)
@@ -1317,6 +1324,123 @@ def get_squad_stats(team_name, league):
     return {}
 
 
+def get_opta_team_stats(team_name, league):
+    """Load OPTA advanced stats from output_opta/{league}/{team}.xlsx.
+    Aggregates player-level data into team-level summaries."""
+    opta_dir = Path("output_opta") / league
+    if not opta_dir.exists():
+        return {}
+
+    # --- Resolve file name (fuzzy match) ---
+    target = _normalize_text(team_name)
+    best_file = None
+    for f in opta_dir.glob("*.xlsx"):
+        if _normalize_text(f.stem) == target:
+            best_file = f
+            break
+    if best_file is None:
+        # Try partial / alias matching
+        for alias in _team_aliases(team_name):
+            alias_norm = _normalize_text(alias)
+            for f in opta_dir.glob("*.xlsx"):
+                if _normalize_text(f.stem) == alias_norm:
+                    best_file = f
+                    break
+            if best_file:
+                break
+    if best_file is None:
+        # Substring fallback
+        for f in opta_dir.glob("*.xlsx"):
+            if target in _normalize_text(f.stem) or _normalize_text(f.stem) in target:
+                best_file = f
+                break
+    if best_file is None:
+        return {}
+
+    result = {"opta_file": best_file.name}
+    try:
+        xl = pd.ExcelFile(best_file)
+        sheets = xl.sheet_names
+
+        # --- Attacking ---
+        if "Attacking" in sheets:
+            df = pd.read_excel(best_file, sheet_name="Attacking")
+            result["opta_goals"] = pd.to_numeric(df.get("goals"), errors="coerce").sum()
+            result["opta_xg"] = pd.to_numeric(df.get("xg"), errors="coerce").sum()
+            result["opta_shots"] = pd.to_numeric(df.get("shots"), errors="coerce").sum()
+            result["opta_sot"] = pd.to_numeric(df.get("sot"), errors="coerce").sum()
+            conv = pd.to_numeric(df.get("conv %"), errors="coerce").dropna()
+            result["opta_conv_pct"] = float(conv.mean()) if len(conv) > 0 else None
+            xgps = pd.to_numeric(df.get("xG per Shot"), errors="coerce").dropna()
+            result["opta_xg_per_shot"] = float(xgps.mean()) if len(xgps) > 0 else None
+
+        # --- Passing ---
+        if "Passing" in sheets:
+            df = pd.read_excel(best_file, sheet_name="Passing")
+            op_total = pd.to_numeric(df.get("Open Play Passes_total"), errors="coerce").sum()
+            op_succ = pd.to_numeric(df.get("Open Play Passes_successful"), errors="coerce").sum()
+            result["opta_open_play_passes"] = float(op_total)
+            result["opta_pass_pct"] = float(op_succ / op_total * 100) if op_total > 0 else None
+            ft_total = pd.to_numeric(df.get("In Final Third_total"), errors="coerce").sum()
+            ft_succ = pd.to_numeric(df.get("In Final Third_successful"), errors="coerce").sum()
+            result["opta_final_third_passes"] = float(ft_total)
+            result["opta_final_third_pct"] = float(ft_succ / ft_total * 100) if ft_total > 0 else None
+            result["opta_crosses"] = pd.to_numeric(df.get("Crosses_total"), errors="coerce").sum()
+            result["opta_through_balls"] = pd.to_numeric(df.get("through balls"), errors="coerce").sum()
+
+        # --- Defending ---
+        if "Defending" in sheets:
+            df = pd.read_excel(best_file, sheet_name="Defending")
+            result["opta_tackles"] = pd.to_numeric(df.get("tackles"), errors="coerce").sum()
+            result["opta_interceptions"] = pd.to_numeric(df.get("ints"), errors="coerce").sum()
+            result["opta_blocks"] = pd.to_numeric(df.get("blocks"), errors="coerce").sum()
+            result["opta_clearances"] = pd.to_numeric(df.get("clearances"), errors="coerce").sum()
+            gd_won = pd.to_numeric(df.get("Ground Duels_won"), errors="coerce").sum()
+            gd_total = pd.to_numeric(df.get("Ground Duels_total"), errors="coerce").sum()
+            result["opta_ground_duels_pct"] = float(gd_won / gd_total * 100) if gd_total > 0 else None
+            ad_won = pd.to_numeric(df.get("Aerial Duels_won"), errors="coerce").sum()
+            ad_total = pd.to_numeric(df.get("Aerial Duels_total"), errors="coerce").sum()
+            result["opta_aerial_duels_pct"] = float(ad_won / ad_total * 100) if ad_total > 0 else None
+
+        # --- Carrying ---
+        if "Carrying" in sheets:
+            df = pd.read_excel(best_file, sheet_name="Carrying")
+            result["opta_progressive_carries"] = pd.to_numeric(df.get("Progressive_total"), errors="coerce").sum()
+            prog_dist = pd.to_numeric(df.get("Progressive_distance (m)"), errors="coerce").sum()
+            result["opta_progressive_distance"] = float(prog_dist)
+            result["opta_carries_to_shot"] = pd.to_numeric(df.get("Ended With_shot"), errors="coerce").sum()
+            result["opta_carries_to_goal"] = pd.to_numeric(df.get("Ended With_goal"), errors="coerce").sum()
+            result["opta_carries_to_chance"] = pd.to_numeric(df.get("Ended With_chance"), errors="coerce").sum()
+
+        # --- Goalkeeping ---
+        if "Goalkeeping" in sheets:
+            df = pd.read_excel(best_file, sheet_name="Goalkeeping")
+            save_pct = pd.to_numeric(df.get("save %"), errors="coerce").dropna()
+            result["opta_save_pct"] = float(save_pct.mean()) if len(save_pct) > 0 else None
+            result["opta_goals_conceded"] = pd.to_numeric(df.get("goals conceded"), errors="coerce").sum()
+            result["opta_saves"] = pd.to_numeric(df.get("saves made"), errors="coerce").sum()
+            gp = pd.to_numeric(df.get("goals prevented"), errors="coerce").dropna()
+            result["opta_goals_prevented"] = float(gp.sum()) if len(gp) > 0 else None
+
+    except Exception as e:
+        result["opta_error"] = str(e)
+
+    return result
+
+
+def _format_opta_section(label, opta):
+    """Format OPTA stats dict into a readable prompt section."""
+    if not opta or "opta_file" not in opta:
+        return f"- {label}: No OPTA data available"
+    lines = [f"- {label} (source: {opta.get('opta_file', 'N/A')}):"]
+    lines.append(f"  Attacking: xG={_fmt_num(opta.get('opta_xg'))}, Goals={_fmt_num(opta.get('opta_goals'))}, Shots={_fmt_num(opta.get('opta_shots'))}, SoT={_fmt_num(opta.get('opta_sot'))}, Conv%={_fmt_num(opta.get('opta_conv_pct'))}, xG/Shot={_fmt_num(opta.get('opta_xg_per_shot'))}")
+    lines.append(f"  Passing: OpenPlay%={_fmt_num(opta.get('opta_pass_pct'))}, FinalThird%={_fmt_num(opta.get('opta_final_third_pct'))}, Crosses={_fmt_num(opta.get('opta_crosses'))}, ThroughBalls={_fmt_num(opta.get('opta_through_balls'))}")
+    lines.append(f"  Defending: Tackles={_fmt_num(opta.get('opta_tackles'))}, Ints={_fmt_num(opta.get('opta_interceptions'))}, Blocks={_fmt_num(opta.get('opta_blocks'))}, GroundDuels%={_fmt_num(opta.get('opta_ground_duels_pct'))}, AerialDuels%={_fmt_num(opta.get('opta_aerial_duels_pct'))}")
+    lines.append(f"  Carrying: ProgCarries={_fmt_num(opta.get('opta_progressive_carries'))}, ProgDist={_fmt_num(opta.get('opta_progressive_distance'))}m, Carry->Shot={_fmt_num(opta.get('opta_carries_to_shot'))}, Carry->Goal={_fmt_num(opta.get('opta_carries_to_goal'))}")
+    lines.append(f"  GK: Save%={_fmt_num(opta.get('opta_save_pct'))}, Saves={_fmt_num(opta.get('opta_saves'))}, GoalsPrevented={_fmt_num(opta.get('opta_goals_prevented'))}")
+    return "\n".join(lines)
+
+
 def _find_player_stats_file(team_name, league):
     base = Path("sofaplayer") / league
     if not base.exists():
@@ -1441,7 +1565,12 @@ def _build_gemini_prompt(
     away_top_rated,
     home_top_scorers,
     away_top_scorers,
+    tactical_scenarios,
+    home_opta=None,
+    away_opta=None,
 ):
+    home_opta = home_opta if isinstance(home_opta, dict) else {}
+    away_opta = away_opta if isinstance(away_opta, dict) else {}
     home_ppda = _pick_first(home_flow, ["calc_PPDA", "PPDA"])
     away_ppda = _pick_first(away_flow, ["calc_PPDA", "PPDA"])
     home_poss = _pick_first(home_squad, ["Poss", "averageBallPossession", "Possession"])
@@ -1528,6 +1657,16 @@ def _build_gemini_prompt(
     home_scorer_text = ", ".join(home_top_scorers) if home_top_scorers else "N/A"
     away_scorer_text = ", ".join(away_top_scorers) if away_top_scorers else "N/A"
 
+    tactical_text_lines = []
+    if tactical_scenarios:
+        for scen in tactical_scenarios:
+            name = scen.get("scenario", "Unknown")
+            prob = scen.get("probability_pct", 0.0)
+            goal_prob = scen.get("goal_probability_pct", 0.0)
+            conf = scen.get("confidence", "low")
+            tactical_text_lines.append(f"- {name} (โอกาสเกิด: {prob}%, โอกาสเป็นประตู: {goal_prob}%, ความเชื่อมั่น: {conf})")
+    tactical_text = "\n".join(tactical_text_lines) if tactical_text_lines else "No specific tactical scenarios generated."
+
     return f"""
 คุณคือนักวิเคราะห์ฟุตบอลอาชีพที่มีประสบการณ์สูง ให้เขียนรายงานภาษาไทยเชิงลึกแบบมืออาชีพในรูปแบบ Markdown
 สำหรับเกม **{home} vs {away}** และใช้ข้อมูลด้านล่างเท่านั้น
@@ -1560,8 +1699,15 @@ Team Style Snapshot
 - Top Scorers ({home}): {home_scorer_text}
 - Top Scorers ({away}): {away_scorer_text}
 
+OPTA Advanced Stats (theanalyst.com)
+{_format_opta_section(home, home_opta)}
+{_format_opta_section(away, away_opta)}
+
 Model Key Matchups
 {key_matchups_text}
+
+Tactical Simulation Scenarios (AI Model Generated)
+{tactical_text}
 
 Position Battles (Player vs Player)
 {position_battles_text}
@@ -1582,7 +1728,7 @@ Live Context / Team News
 # **ส่วนที่ 2: การวิเคราะห์ผู้เล่นรายบุคคล (Player Analysis)**
 4) ส่วนที่ 1 ต้องมีหัวข้อย่อย:
 - สภาพทีม & ข่าวล่าสุด
-- การวิเคราะห์เชิงกลยุทธ์ & แทคติก
+- การวิเคราะห์เชิงกลยุทธ์ & แทคติก (ต้องพูดถึง Tactical Scenarios ที่ให้ไป)
 - ตารางเปรียบเทียบกลยุทธ์ (ต้องเป็นตาราง Markdown)
 - ภาพรวมและแนวโน้ม
 - บทสรุปภาพรวม (ต้องฟันธงสกอร์และความมั่นใจ สูง/กลาง/ต่ำ พร้อมอ้าง Top 3 Scores และ Math Winner Signal)
@@ -1790,6 +1936,12 @@ def main():
     away_flow = get_game_flow_stats(away, league)
     home_squad = get_squad_stats(home, league)
     away_squad = get_squad_stats(away, league)
+    home_opta = get_opta_team_stats(home, league)
+    away_opta = get_opta_team_stats(away, league)
+    if home_opta:
+        print(f"[Info] OPTA data loaded for {home}: {home_opta.get('opta_file', 'N/A')}")
+    if away_opta:
+        print(f"[Info] OPTA data loaded for {away}: {away_opta.get('opta_file', 'N/A')}")
     home_top_rated, home_top_scorers = get_top_players(home, league, top_n=3)
     away_top_rated, away_top_scorers = get_top_players(away, league, top_n=3)
     tactical_scenarios = build_tactical_scenario_report(
@@ -1822,6 +1974,26 @@ def main():
     home_xt = _pick_first(home_flow, ["xT", "xt", "xT_per_90", "xt_proxy"], home_prog.get("xt_proxy"))
     away_xt = _pick_first(away_flow, ["xT", "xt", "xT_per_90", "xt_proxy"], away_prog.get("xt_proxy"))
 
+    # Fallbacks for sparse stats sheets to reduce nulls in Team_Style_Snapshot.
+    if home_g90 is None:
+        home_g90 = _pick_first(home_sim_stats, ["goals_scored_per_game"])
+    if away_g90 is None:
+        away_g90 = _pick_first(away_sim_stats, ["goals_scored_per_game"])
+    if home_ga90 is None:
+        home_ga90 = _pick_first(home_sim_stats, ["goals_conceded_per_game"])
+    if away_ga90 is None:
+        away_ga90 = _pick_first(away_sim_stats, ["goals_conceded_per_game"])
+    if home_poss is None:
+        home_poss = _pick_first(home_squad, ["averageBallPossession"])
+    if away_poss is None:
+        away_poss = _pick_first(away_squad, ["averageBallPossession"])
+
+    xg_input = sim.get("xg_input", {})
+    if home_xg90 is None:
+        home_xg90 = _pick_first((xg_input.get("home") or {}).get("attack") or {}, ["xg_per_game"])
+    if away_xg90 is None:
+        away_xg90 = _pick_first((xg_input.get("away") or {}).get("attack") or {}, ["xg_per_game"])
+
     analysis_file = _analysis_path(home, away)
     analysis_generated = False
     analysis_error = None
@@ -1847,6 +2019,9 @@ def main():
             away_top_rated=away_top_rated,
             home_top_scorers=home_top_scorers,
             away_top_scorers=away_top_scorers,
+            tactical_scenarios=tactical_scenarios.get("scenarios", []),
+            home_opta=home_opta,
+            away_opta=away_opta,
         )
         ai_report, analysis_error = _generate_ai_report(prompt=prompt, api_key=gemini_key)
         if ai_report:

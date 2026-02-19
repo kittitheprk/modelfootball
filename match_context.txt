@@ -1,10 +1,18 @@
-﻿Match: AS Monaco vs Paris Saint-Germain
-Date: 2026-02-18
-League: Champions_League
+﻿Match: Brentford vs Brighton & Hove Albion
+Date: 2026-02-19
+League: Premier_League
 
 Lineups
-<iframe id="sofa-lineups-embed-15452739" src="https://widgets.sofascore.com/embed/lineups?id=15452739&widgetTheme=light" style=height:786px!important;max-width:800px!important;width:100%!important; frameborder="0"
+<iframe id="sofa-lineups-embed-14024006" src="https://widgets.sofascore.com/embed/lineups?id=14024006&widgetTheme=light" style=height:786px!important;max-width:800px!important;width:100%!important; frameborder="0"
       scrolling="no"></iframe>
-      <div style="font-size:12px;font-family:Arial,sans-serif"><a href="https://www.sofascore.com/football/match/as-monaco-paris-saint-germain/UHsdI#id:15452739" target="_blank" rel="noreferrer">
-          AS Monaco - Paris Saint-Germain Live Score
+      <div style="font-size:12px;font-family:Arial,sans-serif"><a href="https://www.sofascore.com/football/match/brentford-brighton-and-hove-albion/Fsab#id:14024006" target="_blank" rel="noreferrer">
+          Brentford - Brighton & Hove Albion Live Score
         </a></div>
+
+Team News
+- Keith Andrews will recall all of his first-team stars after resting them for the FA Cup win at Macclesfield.
+- Jordan Henderson should return after he was rested for Monday's fourth round tie.
+- Kevin Schade completes a three-game ban and remains unavailable.
+- Yasin Ayari could return after missing the last three games with a shoulder problem.
+- Fabian Hurzeler might be tempted to freshen up his attack following three games without a goal and start both Yankuba Minteh and Georginio Rutter.
+- Adam Webster and Stefanos Tzimas have been ruled out for the rest of the season.

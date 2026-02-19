@@ -23,7 +23,6 @@ REQUIRED_DIRS = [
 REQUIRED_FILES = [
     "analyze_match.py",
     "xg_engine.py",
-    "simulator_v8.py",
     "simulator_v9.py",
     "update_tracker.py",
     "scripts/run_update.py",
@@ -90,7 +89,8 @@ def check_pipeline_preflight():
             print(f"  - {rel_path} ({desc}) -> {abs_path}")
         return False
 
-    print_status("pipeline_preflight", True, f"{len(run_update.SCRIPTS_TO_RUN)} scripts ready")
+    steps = run_update.build_steps(include_active=False)
+    print_status("pipeline_preflight", True, f"{len(steps)} scripts ready")
     return True
 
 

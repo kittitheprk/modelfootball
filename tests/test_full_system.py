@@ -7,7 +7,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-import simulator_v8
+import simulator_v9
 import xg_engine
 
 
@@ -24,11 +24,12 @@ class TestFullSystem(unittest.TestCase):
         self.assertIn("attack", h_xg)
         self.assertIn("defense", h_xg)
 
-        sim = simulator_v8.simulate_match(h_xg, a_xg, None, None, iterations=1000)
+        sim = simulator_v9.simulate_match(h_xg, a_xg, None, None, iterations=1000)
         self.assertIn("most_likely_score", sim)
         self.assertIn("home_win_prob", sim)
         self.assertIn("draw_prob", sim)
         self.assertIn("away_win_prob", sim)
+        self.assertEqual(sim.get("model_version"), "v9")
 
         total_prob = sim["home_win_prob"] + sim["draw_prob"] + sim["away_win_prob"]
         self.assertAlmostEqual(total_prob, 100.0, delta=0.2)
