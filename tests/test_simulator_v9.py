@@ -56,6 +56,8 @@ class TestSimulatorV9(unittest.TestCase):
         self.assertIn("fatigue_context", sim)
         self.assertIn("progression_context", sim)
         self.assertIn("key_matchups", sim)
+        self.assertIn("position_battles", sim)
+        self.assertIn("math_winner_context", sim)
 
         total_prob = sim["home_win_prob"] + sim["draw_prob"] + sim["away_win_prob"]
         self.assertAlmostEqual(total_prob, 100.0, delta=0.2)

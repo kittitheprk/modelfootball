@@ -3,11 +3,37 @@ import os
 import requests
 import json
 import sys
+from pathlib import Path
+
+
+def _load_gemini_api_key():
+    env_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    key_file = Path("gemini_key.txt")
+    if not key_file.exists():
+        return ""
+
+    try:
+        raw = key_file.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+    for line in raw.splitlines():
+        cleaned = line.strip().strip('"').strip("'")
+        if not cleaned or cleaned.startswith("#"):
+            continue
+        if "=" in cleaned:
+            cleaned = cleaned.split("=", 1)[1].strip().strip('"').strip("'")
+        if cleaned:
+            return cleaned
+    return ""
 
 # Force UTF-8 output
 sys.stdout.reconfigure(encoding='utf-8')
 
-API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+API_KEY = _load_gemini_api_key()
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
 
 def get_match_context(home, away):
@@ -92,7 +118,7 @@ def main():
         print(f"{filename} not found.")
         return
     if not API_KEY:
-        print("[Warning] GEMINI_API_KEY not set. Skipping AI best-bet analysis.")
+        print("[Warning] Gemini API key not set (env or gemini_key.txt). Skipping AI best-bet analysis.")
         return
 
     print("Reading 'bet data'...")

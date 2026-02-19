@@ -693,6 +693,9 @@ def _player_profile(row):
     key_pass_p90 = _per90(row, "keyPasses", minutes)
     dribble_p90 = _per90(row, "successfulDribbles", minutes)
     shots_on_target_p90 = _per90(row, "shotsOnTarget", minutes)
+    opp_half_passes_p90 = _per90(row, "accurateOppositionHalfPasses", minutes)
+    big_created_p90 = _per90(row, "bigChancesCreated", minutes)
+    inside_box_shots_p90 = _per90(row, "shotsFromInsideTheBox", minutes)
 
     tackles_p90 = _per90(row, "tackles", minutes)
     interceptions_p90 = _per90(row, "interceptions", minutes)
@@ -703,10 +706,24 @@ def _player_profile(row):
     finisher_signal = _tanh_norm((xg_p90 * 0.7) + (goals_p90 * 0.55) + (shots_on_target_p90 * 0.22), 0.85)
     creator_signal = _tanh_norm((xa_p90 * 0.9) + (assists_p90 * 0.55) + (key_pass_p90 * 0.18) + (dribble_p90 * 0.08), 0.75)
     attack = (0.50 * rating_norm) + (0.30 * finisher_signal) + (0.20 * creator_signal)
+    xt_proxy = _clip(
+        (0.42 * _tanh_norm((xa_p90 * 1.7) + (key_pass_p90 * 0.75) + (big_created_p90 * 0.55), 2.1))
+        + (0.30 * _tanh_norm((dribble_p90 * 0.8) + (opp_half_passes_p90 / 35.0), 1.7))
+        + (0.28 * _tanh_norm((xg_p90 * 1.2) + (inside_box_shots_p90 * 0.24), 1.35)),
+        0.0,
+        1.2,
+    )
 
     defensive_actions = _tanh_norm((tackles_p90 * 0.45) + (interceptions_p90 * 0.55) + (clearances_p90 * 0.25), 1.25)
     duel_signal = _clip(((duel_pct / 100.0) + (aerial_pct / 100.0)) * 0.5, 0.0, 1.2)
     defense = (0.52 * rating_norm) + (0.30 * defensive_actions) + (0.18 * duel_signal)
+    control = _clip(
+        (0.44 * _tanh_norm((key_pass_p90 * 0.55) + (xa_p90 * 1.6), 1.4))
+        + (0.30 * _tanh_norm(dribble_p90, 2.4))
+        + (0.26 * _clip(duel_pct / 100.0, 0.0, 1.15)),
+        0.0,
+        1.2,
+    )
 
     strengths = _norm_text(row.get("Strengths_Text", ""))
     weaknesses = _norm_text(row.get("Weaknesses_Text", ""))
@@ -762,6 +779,7 @@ def _player_profile(row):
     fallback_level = 0.45 + (0.20 * rating_norm)
     attack = (attack * reliability) + (fallback_level * (1.0 - reliability))
     defense = (defense * reliability) + (fallback_level * (1.0 - reliability))
+    control = (control * reliability) + ((fallback_level * 0.95) * (1.0 - reliability))
 
     return {
         "name": row.get("Player_Name", "Unknown"),
@@ -769,8 +787,12 @@ def _player_profile(row):
         "role": role,
         "attack": float(attack),
         "defense": float(defense),
+        "control": float(control),
         "minutes": float(minutes),
         "workload": _clip(minutes / (apps * 90.0), 0.40, 1.20),
+        "xg_p90": float(xg_p90),
+        "xa_p90": float(xa_p90),
+        "xt_proxy": float(xt_proxy),
         "aerial_pct": float(aerial_pct),
         "key_passes_p90": float(key_pass_p90),
         "dribbles_p90": float(dribble_p90),
@@ -785,6 +807,9 @@ def _aggregate_lineup(lineup_df):
             "defense": 0.70,
             "overall": 0.70,
             "load_index": 0.90,
+            "xg_p90": 0.0,
+            "xa_p90": 0.0,
+            "xt_proxy": 0.0,
             "players": [],
         }
 
@@ -796,6 +821,7 @@ def _aggregate_lineup(lineup_df):
     att_sum = att_w_sum = 0.0
     def_sum = def_w_sum = 0.0
     ov_sum = ov_w_sum = 0.0
+    xg_sum = xa_sum = xt_sum = 0.0
     workloads = []
 
     for _, row in lineup_df.iterrows():
@@ -813,6 +839,9 @@ def _aggregate_lineup(lineup_df):
         def_w_sum += dw
         ov_sum += ((p["attack"] + p["defense"]) * 0.5) * ow
         ov_w_sum += ow
+        xg_sum += p["xg_p90"] * aw
+        xa_sum += p["xa_p90"] * aw
+        xt_sum += p["xt_proxy"] * ow
         workloads.append(p["workload"])
 
     return {
@@ -820,6 +849,9 @@ def _aggregate_lineup(lineup_df):
         "defense": float(def_sum / max(1e-9, def_w_sum)),
         "overall": float(ov_sum / max(1e-9, ov_w_sum)),
         "load_index": float(np.mean(workloads) if workloads else 0.90),
+        "xg_p90": float(xg_sum / max(1e-9, att_w_sum)),
+        "xa_p90": float(xa_sum / max(1e-9, att_w_sum)),
+        "xt_proxy": float(xt_sum / max(1e-9, ov_w_sum)),
         "players": players,
     }
 
@@ -889,12 +921,33 @@ def _duel_score(attacker, defender, central=False):
     return _clip(score, -1.2, 1.2)
 
 
+def _midfield_duel_score(playmaker, stopper):
+    if playmaker is None or stopper is None:
+        return 0.0
+    score = (
+        (0.62 * _safe_float(playmaker.get("control"), 0.0))
+        + (0.24 * _safe_float(playmaker.get("xa_p90"), 0.0))
+        - (0.60 * _safe_float(stopper.get("defense"), 0.0))
+        - (0.20 * _safe_float(stopper.get("control"), 0.0))
+    )
+    return _clip(score, -1.2, 1.2)
+
+
+def _duel_edge(score, perspective="home", tolerance=0.08):
+    if score > tolerance:
+        return perspective
+    if score < -tolerance:
+        return "away" if perspective == "home" else "home"
+    return "even"
+
+
 def _derive_matchups(home_profile, away_profile):
     if not home_profile or not away_profile:
         return {
             "home_adj": 0.0,
             "away_adj": 0.0,
             "highlights": [],
+            "position_battles": [],
         }
 
     hp = home_profile["actual"]["players"]
@@ -917,17 +970,20 @@ def _derive_matchups(home_profile, away_profile):
     home_rb = _pick_best_player(home_rb_pool, {"RB", "RWB"}, "defense", fallback_role="DEF") or home_lb
     home_cb_pool = [p for p in hp if p is not home_lb and p is not home_rb]
     home_cb = _pick_best_player(home_cb_pool, {"CB"}, "defense", fallback_role="DEF") or home_rb
+    home_cm = _pick_best_player(hp, {"CDM", "DM", "CM", "CAM", "AM"}, "control", fallback_role="MID")
 
     away_lb = _pick_best_player(ap, {"LB", "LWB"}, "defense", fallback_role="DEF")
     away_rb_pool = [p for p in ap if p is not away_lb]
     away_rb = _pick_best_player(away_rb_pool, {"RB", "RWB"}, "defense", fallback_role="DEF") or away_lb
     away_cb_pool = [p for p in ap if p is not away_lb and p is not away_rb]
     away_cb = _pick_best_player(away_cb_pool, {"CB"}, "defense", fallback_role="DEF") or away_rb
+    away_cm = _pick_best_player(ap, {"CDM", "DM", "CM", "CAM", "AM"}, "control", fallback_role="MID")
 
     home_duels = [
         ("Left Flank", home_lw, away_rb, False),
         ("Right Flank", home_rw, away_lb, False),
         ("Central 9", home_st, away_cb, True),
+        ("Midfield Control", home_cm, away_cm, False),
     ]
     away_duels = [
         ("Left Flank", away_lw, home_rb, False),
@@ -938,18 +994,52 @@ def _derive_matchups(home_profile, away_profile):
     home_scores = []
     away_scores = []
     highlights = []
+    position_battles = []
 
     for label, att, deff, central in home_duels:
         if att and deff:
-            score = _duel_score(att, deff, central=central)
+            if label == "Midfield Control":
+                score = _midfield_duel_score(att, deff)
+            else:
+                score = _duel_score(att, deff, central=central)
             home_scores.append(score)
             highlights.append(f"Home {label}: {att['name']} vs {deff['name']} ({score:+.2f})")
+            position_battles.append(
+                {
+                    "perspective": "home",
+                    "zone": label,
+                    "attacker": att["name"],
+                    "defender": deff["name"],
+                    "attack_value": float(_safe_float(att.get("attack"), 0.0)),
+                    "defense_value": float(_safe_float(deff.get("defense"), 0.0)),
+                    "xg_p90": float(_safe_float(att.get("xg_p90"), 0.0)),
+                    "xa_p90": float(_safe_float(att.get("xa_p90"), 0.0)),
+                    "xt_proxy": float(_safe_float(att.get("xt_proxy"), 0.0)),
+                    "duel_score": float(score),
+                    "edge": _duel_edge(score, perspective="home"),
+                }
+            )
 
     for label, att, deff, central in away_duels:
         if att and deff:
             score = _duel_score(att, deff, central=central)
             away_scores.append(score)
             highlights.append(f"Away {label}: {att['name']} vs {deff['name']} ({score:+.2f})")
+            position_battles.append(
+                {
+                    "perspective": "away",
+                    "zone": label,
+                    "attacker": att["name"],
+                    "defender": deff["name"],
+                    "attack_value": float(_safe_float(att.get("attack"), 0.0)),
+                    "defense_value": float(_safe_float(deff.get("defense"), 0.0)),
+                    "xg_p90": float(_safe_float(att.get("xg_p90"), 0.0)),
+                    "xa_p90": float(_safe_float(att.get("xa_p90"), 0.0)),
+                    "xt_proxy": float(_safe_float(att.get("xt_proxy"), 0.0)),
+                    "duel_score": float(score),
+                    "edge": _duel_edge(score, perspective="away"),
+                }
+            )
 
     home_edge = float(np.mean(home_scores)) if home_scores else 0.0
     away_edge = float(np.mean(away_scores)) if away_scores else 0.0
@@ -958,6 +1048,7 @@ def _derive_matchups(home_profile, away_profile):
         "home_adj": float(_clip(home_edge * 0.08, -0.05, 0.06)),
         "away_adj": float(_clip(away_edge * 0.08, -0.05, 0.06)),
         "highlights": highlights[:4],
+        "position_battles": position_battles[:8],
     }
 
 
@@ -1115,7 +1206,8 @@ def simulate_match(
     reg_home = (shr * base_home) + ((1 - shr) * prior_home)
     reg_away = (shr * base_away) + ((1 - shr) * prior_away)
 
-    home_adv, away_dis = 1.04, 0.98
+    # Calibrated to keep baseline home tilt near ~5-6% (including prior shrinkage effect).
+    home_adv, away_dis = 1.034, 0.996
     h_form = _safe_float(home_xg.get("form_last_5"), 7.5)
     a_form = _safe_float(away_xg.get("form_last_5"), 7.5)
     form_adj = _clip(((h_form - a_form) / 15.0) * 0.08, -0.04, 0.04)
@@ -1126,11 +1218,31 @@ def simulate_match(
     lambda_home = reg_home * home_adv * (1.0 + form_adj + strength_adj)
     lambda_away = reg_away * away_dis * (1.0 - form_adj - strength_adj)
 
+    # Winner mentality signal (v7.1 spirit, moderated for v9 stability).
+    home_ratio = reg_home / max(1e-9, reg_away)
+    away_ratio = reg_away / max(1e-9, reg_home)
+    ratio_threshold = 1.12
+    home_math_bonus = 0.0
+    away_math_bonus = 0.0
+    math_winner_side = "none"
+    if home_ratio > ratio_threshold and home_ratio >= away_ratio:
+        home_math_bonus = _clip((home_ratio - ratio_threshold) * 0.045, 0.0, 0.030)
+        math_winner_side = "home"
+    elif away_ratio > ratio_threshold:
+        away_math_bonus = _clip((away_ratio - ratio_threshold) * 0.045, 0.0, 0.030)
+        math_winner_side = "away"
+
+    lambda_home *= 1.0 + home_math_bonus
+    lambda_away *= 1.0 + away_math_bonus
+
     lineup_ctx = {
         "home_source": "off",
         "away_source": "off",
         "home_matched": 0,
         "away_matched": 0,
+        "home_lineup_metrics": None,
+        "away_lineup_metrics": None,
+        "confidence": 0.0,
     }
     fatigue_ctx = {
         "home_attack_penalty": 0.0,
@@ -1149,6 +1261,15 @@ def simulate_match(
         "away_strength": None,
     }
     key_matchups = []
+    position_battles = []
+    math_winner_ctx = {
+        "winner_side": math_winner_side,
+        "home_ratio": float(home_ratio),
+        "away_ratio": float(away_ratio),
+        "home_bonus": float(home_math_bonus),
+        "away_bonus": float(away_math_bonus),
+        "ratio_threshold": float(ratio_threshold),
+    }
 
     lineup_quality_adj = 0.0
     home_matchup_adj = 0.0
@@ -1208,6 +1329,23 @@ def simulate_match(
                         "away_source": away_profile["source"],
                         "home_matched": home_profile["matched_count"],
                         "away_matched": away_profile["matched_count"],
+                        "home_lineup_metrics": {
+                            "attack": home_profile["actual"]["attack"],
+                            "defense": home_profile["actual"]["defense"],
+                            "overall": home_profile["actual"]["overall"],
+                            "xg_p90": home_profile["actual"].get("xg_p90"),
+                            "xa_p90": home_profile["actual"].get("xa_p90"),
+                            "xt_proxy": home_profile["actual"].get("xt_proxy"),
+                        },
+                        "away_lineup_metrics": {
+                            "attack": away_profile["actual"]["attack"],
+                            "defense": away_profile["actual"]["defense"],
+                            "overall": away_profile["actual"]["overall"],
+                            "xg_p90": away_profile["actual"].get("xg_p90"),
+                            "xa_p90": away_profile["actual"].get("xa_p90"),
+                            "xt_proxy": away_profile["actual"].get("xt_proxy"),
+                        },
+                        "confidence": float(_clip((home_profile["matched_count"] + away_profile["matched_count"]) / 22.0, 0.0, 1.0)),
                     }
 
                     lineup_quality_adj = _clip(
@@ -1230,6 +1368,7 @@ def simulate_match(
                     home_matchup_adj = matchup_data["home_adj"]
                     away_matchup_adj = matchup_data["away_adj"]
                     key_matchups = matchup_data["highlights"]
+                    position_battles = matchup_data.get("position_battles", [])
 
                     lambda_home *= 1.0 + home_matchup_adj
                     lambda_away *= 1.0 + away_matchup_adj
@@ -1287,6 +1426,8 @@ def simulate_match(
     ]
     if abs(lineup_quality_adj) > 1e-6:
         bonus_parts.append(f"Lineup {lineup_quality_adj*100:+.1f}%")
+    if home_math_bonus > 1e-6 or away_math_bonus > 1e-6:
+        bonus_parts.append(f"MathWinner H{home_math_bonus*100:+.1f}% A{away_math_bonus*100:+.1f}%")
     if abs(progression_home_adj) > 1e-6 or abs(progression_away_adj) > 1e-6:
         bonus_parts.append(f"Progression H{progression_home_adj*100:+.1f}% A{progression_away_adj*100:+.1f}%")
     if abs(home_matchup_adj) > 1e-6 or abs(away_matchup_adj) > 1e-6:
@@ -1318,6 +1459,8 @@ def simulate_match(
         "calibration_context": calibration_ctx,
         "progression_context": progression_ctx,
         "key_matchups": key_matchups,
+        "position_battles": position_battles,
+        "math_winner_context": math_winner_ctx,
     }
 
 

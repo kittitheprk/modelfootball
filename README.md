@@ -109,6 +109,10 @@ League: Premier League
 * **FW:** ...
 ```
 
+หรือวางโค้ด widget `Lineups` ของ SofaScore ได้เลย (เช่น iframe ที่มี `id=15452731`)
+ระบบจะดึงข้อมูลจาก `event/<id>/lineups` อัตโนมัติ แล้วแปลงเป็น `Confirmed Lineups`
+ให้โมเดลใช้งานตอนรัน `analyze_match.py`
+
 4. รันวิเคราะห์แมตช์
 
 ```bash

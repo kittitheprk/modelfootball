@@ -36,6 +36,24 @@ TEAM_NAME_MAP = {
 TEAM_SUFFIX_TOKENS = {"fc", "cf", "sc", "afc", "ac"}
 SCORE_PAIR_RE = re.compile(r"^\s*(\d+)\s*[-:]\s*(\d+)\s*$")
 
+SOFASCORE_HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://www.sofascore.com/",
+    "Origin": "https://www.sofascore.com",
+}
+SOFASCORE_CONTEXT_MARKER = "<!-- AUTO_SOFASCORE_LINEUPS -->"
+SOFASCORE_POSITION_MAP = {
+    "G": "GK",
+    "GK": "GK",
+    "D": "DEF",
+    "DEF": "DEF",
+    "M": "MID",
+    "MID": "MID",
+    "F": "ATT",
+    "FW": "ATT",
+    "ATT": "ATT",
+}
+
 
 def normalize_team_name(name):
     return TEAM_NAME_MAP.get(str(name).strip(), str(name).strip())
@@ -194,12 +212,262 @@ def get_progression_stats(team_name, league):
     except Exception:
         return {}
 
-def _load_live_context(path="match_context.txt"):
+
+def _extract_sofascore_event_id(context_text):
+    text = str(context_text or "")
+    patterns = [
+        r"embed/lineups\?[^#\n]*?\bid=(\d+)",
+        r"[?&]id=(\d+)",
+        r"#id:(\d+)",
+        r"/event/(\d+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _sofascore_get_json(url, timeout_sec=20):
+    try:
+        response = requests.get(url, headers=SOFASCORE_HTTP_HEADERS, timeout=timeout_sec)
+    except Exception as ex:
+        return None, f"request_failed: {ex}"
+    if response.status_code != 200:
+        body = response.text.strip().replace("\n", " ")
+        if len(body) > 220:
+            body = body[:220] + "..."
+        return None, f"http_{response.status_code}: {body}"
+    try:
+        return response.json(), None
+    except Exception:
+        return None, "invalid_json"
+
+
+def _sofascore_player_name(entry):
+    if not isinstance(entry, dict):
+        return None
+    player = entry.get("player", {})
+    if isinstance(player, dict):
+        name = str(player.get("name") or player.get("shortName") or "").strip()
+        if name:
+            return name
+    fallback = str(entry.get("name") or "").strip()
+    return fallback if fallback else None
+
+
+def _sofascore_position_code(value):
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return ""
+    return SOFASCORE_POSITION_MAP.get(raw, raw)
+
+
+def _sofascore_float(value):
+    try:
+        out = float(value)
+        return out
+    except Exception:
+        return None
+
+
+def _sofascore_player_payload(entry):
+    if not isinstance(entry, dict):
+        return None
+
+    player = entry.get("player", {})
+    player = player if isinstance(player, dict) else {}
+
+    name = str(player.get("name") or player.get("shortName") or entry.get("name") or "").strip()
+    if not name:
+        return None
+
+    position = _sofascore_position_code(entry.get("position") or player.get("position"))
+    shirt = str(entry.get("shirtNumber") or entry.get("jerseyNumber") or player.get("jerseyNumber") or "").strip()
+    avg_rating = _sofascore_float(entry.get("avgRating"))
+    player_id = player.get("id") if player.get("id") is not None else entry.get("playerId")
+
+    return {
+        "id": player_id,
+        "name": name,
+        "position": position,
+        "shirt": shirt,
+        "avg_rating": avg_rating,
+        "substitute": bool(entry.get("substitute")),
+    }
+
+
+def _format_sofascore_player_inline(player_item):
+    if not isinstance(player_item, dict):
+        return None
+    name = str(player_item.get("name") or "").strip()
+    if not name:
+        return None
+
+    tags = []
+    pos = str(player_item.get("position") or "").strip()
+    if pos:
+        tags.append(pos)
+    shirt = str(player_item.get("shirt") or "").strip()
+    if shirt:
+        tags.append(f"#{shirt}")
+
+    out = name
+    if tags:
+        out += f" ({' '.join(tags)})"
+    return out
+
+
+def _sofascore_collect_players(items):
+    out, seen = [], set()
+    for item in items or []:
+        payload = _sofascore_player_payload(item)
+        if not payload:
+            continue
+
+        pid = payload.get("id")
+        if pid is not None:
+            key = f"id:{pid}"
+        else:
+            key = f"name:{_normalize_text(payload.get('name'))}"
+        if not key or key in seen:
+            continue
+
+        seen.add(key)
+        out.append(payload)
+    return out
+
+
+def _sofascore_collect_names(items):
+    out, seen = [], set()
+    for item in items or []:
+        name = _sofascore_player_name(item)
+        if not name:
+            continue
+        key = _normalize_text(name)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return out
+
+
+def _sofascore_collect_side(side_payload):
+    if not isinstance(side_payload, dict):
+        return [], [], [], "N/A"
+
+    players = _sofascore_collect_players(side_payload.get("players") or [])
+    starters = [p for p in players if not bool(p.get("substitute"))]
+    bench = [p for p in players if bool(p.get("substitute"))]
+
+    # Fallback for payloads without explicit substitute flags.
+    if not starters and players:
+        starters = players[:11]
+        bench = players[11:]
+
+    missing = _sofascore_collect_players(side_payload.get("missingPlayers") or [])
+    formation = str(side_payload.get("formation") or "N/A")
+    return starters[:11], bench, missing, formation
+
+
+def _build_sofascore_context_block(event_id, lineups_json, event_json, home_hint=None, away_hint=None):
+    event = (event_json or {}).get("event", {}) if isinstance(event_json, dict) else {}
+    event_home = ((event.get("homeTeam") or {}).get("name") if isinstance(event, dict) else None) or None
+    event_away = ((event.get("awayTeam") or {}).get("name") if isinstance(event, dict) else None) or None
+    home_name = str(home_hint or event_home or "Home Team")
+    away_name = str(away_hint or event_away or "Away Team")
+
+    home_start, home_bench, home_missing, home_formation = _sofascore_collect_side((lineups_json or {}).get("home"))
+    away_start, away_bench, away_missing, away_formation = _sofascore_collect_side((lineups_json or {}).get("away"))
+
+    home_xi_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in home_start) if x]) if home_start else "N/A"
+    away_xi_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in away_start) if x]) if away_start else "N/A"
+    home_bench_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in home_bench) if x]) if home_bench else "N/A"
+    away_bench_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in away_bench) if x]) if away_bench else "N/A"
+    home_missing_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in home_missing) if x]) if home_missing else "N/A"
+    away_missing_text = ", ".join([x for x in (_format_sofascore_player_inline(p) for p in away_missing) if x]) if away_missing else "N/A"
+
+    tournament_name = ((event.get("tournament") or {}).get("name") if isinstance(event, dict) else None) or ""
+    start_ts = event.get("startTimestamp") if isinstance(event, dict) else None
+    match_date = None
+    if start_ts:
+        try:
+            match_date = pd.to_datetime(int(start_ts), unit="s").strftime("%Y-%m-%d")
+        except Exception:
+            match_date = None
+
+    lines = [
+        SOFASCORE_CONTEXT_MARKER,
+        "**Confirmed Lineups (Auto from SofaScore Widget):**",
+        f"- SofaScore Event ID: {event_id}",
+        f"- Lineups Confirmed: {'Yes' if bool((lineups_json or {}).get('confirmed')) else 'No'}",
+    ]
+    if tournament_name:
+        lines.append(f"- Competition: {tournament_name}")
+    if match_date:
+        lines.append(f"- Date: {match_date}")
+
+    lines.extend(
+        [
+            "",
+            f"**{home_name} ({home_formation}):**",
+            f"* **XI (payload position):** {home_xi_text}",
+            "",
+            f"**{away_name} ({away_formation}):**",
+            f"* **XI (payload position):** {away_xi_text}",
+            "",
+            "Team News:",
+            f"* {home_name} Bench: {home_bench_text}",
+            f"* {away_name} Bench: {away_bench_text}",
+            f"* {home_name} Missing: {home_missing_text}",
+            f"* {away_name} Missing: {away_missing_text}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _expand_sofascore_widget_context(context_text, home_team=None, away_team=None):
+    raw = str(context_text or "")
+    event_id = _extract_sofascore_event_id(raw)
+    if not event_id:
+        return raw
+    if SOFASCORE_CONTEXT_MARKER in raw:
+        return raw
+
+    lineups_url = f"https://api.sofascore.com/api/v1/event/{event_id}/lineups"
+    event_url = f"https://api.sofascore.com/api/v1/event/{event_id}"
+
+    lineups_json, lineup_error = _sofascore_get_json(lineups_url)
+    if lineups_json is None:
+        print(f"[Warning] SofaScore lineups load failed for event {event_id}: {lineup_error}")
+        return raw
+
+    event_json, event_error = _sofascore_get_json(event_url)
+    if event_json is None:
+        print(f"[Warning] SofaScore event metadata load failed for event {event_id}: {event_error}")
+
+    block = _build_sofascore_context_block(
+        event_id=event_id,
+        lineups_json=lineups_json,
+        event_json=event_json,
+        home_hint=home_team,
+        away_hint=away_team,
+    )
+    print(f"[Info] SofaScore lineup context loaded from event id {event_id}.")
+    return f"{raw.strip()}\n\n{block}\n" if raw.strip() else f"{block}\n"
+
+
+def _load_live_context(path="match_context.txt", home_team=None, away_team=None):
     if not os.path.exists(path):
         return "No live context available (Lineups/Injuries missing)."
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+            context_text = f.read()
+            return _expand_sofascore_widget_context(
+                context_text=context_text,
+                home_team=home_team,
+                away_team=away_team,
+            )
     except Exception:
         return "No live context available (Lineups/Injuries missing)."
 
@@ -207,7 +475,7 @@ def _load_live_context(path="match_context.txt"):
 def _parse_context_headers(context_text):
     headers = {"match": None, "date": None, "league": None}
     for raw_line in str(context_text).splitlines():
-        line = re.sub(r"[*_`#>\[\]]", "", raw_line).strip()
+        line = re.sub(r"[*`#>\[\]]", "", raw_line).strip()
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
@@ -1182,6 +1450,77 @@ def _build_gemini_prompt(
     away_g90 = _pick_first(away_squad, ["Per 90 Minutes_Gls", "goalsScored_per_90", "Goals/90"])
     home_ga90 = _pick_first(home_squad, ["Per 90 Minutes_GA", "goalsConceded_per_90", "GA/90"])
     away_ga90 = _pick_first(away_squad, ["Per 90 Minutes_GA", "goalsConceded_per_90", "GA/90"])
+    home_xg90 = _pick_first(home_squad, ["Per 90 Minutes_xG", "xG/90", "Expected_xG", "xG"])
+    away_xg90 = _pick_first(away_squad, ["Per 90 Minutes_xG", "xG/90", "Expected_xG", "xG"])
+    home_xa90 = _pick_first(home_squad, ["Per 90 Minutes_xAG", "xA/90", "Expected_xAG", "xA"])
+    away_xa90 = _pick_first(away_squad, ["Per 90 Minutes_xAG", "xA/90", "Expected_xAG", "xA"])
+    lineup_ctx = sim.get("lineup_context") if isinstance(sim, dict) else {}
+    lineup_ctx = lineup_ctx if isinstance(lineup_ctx, dict) else {}
+    home_lineup_metrics = lineup_ctx.get("home_lineup_metrics") if isinstance(lineup_ctx, dict) else {}
+    away_lineup_metrics = lineup_ctx.get("away_lineup_metrics") if isinstance(lineup_ctx, dict) else {}
+    home_lineup_metrics = home_lineup_metrics if isinstance(home_lineup_metrics, dict) else {}
+    away_lineup_metrics = away_lineup_metrics if isinstance(away_lineup_metrics, dict) else {}
+    progression_ctx = sim.get("progression_context") if isinstance(sim, dict) else {}
+    progression_ctx = progression_ctx if isinstance(progression_ctx, dict) else {}
+    math_ctx = sim.get("math_winner_context") if isinstance(sim, dict) else {}
+    math_ctx = math_ctx if isinstance(math_ctx, dict) else {}
+
+    if home_xg90 is None:
+        home_xg90 = _pick_first(((sim.get("xg_input") or {}).get("home") or {}).get("attack", {}), ["xg_per_game"])
+    if away_xg90 is None:
+        away_xg90 = _pick_first(((sim.get("xg_input") or {}).get("away") or {}).get("attack", {}), ["xg_per_game"])
+    if home_xa90 is None:
+        home_xa90 = home_lineup_metrics.get("xa_p90")
+    if away_xa90 is None:
+        away_xa90 = away_lineup_metrics.get("xa_p90")
+
+    home_xt = _pick_first(home_flow, ["xT", "xt", "xT_per_90", "xt_proxy"])
+    away_xt = _pick_first(away_flow, ["xT", "xt", "xT_per_90", "xt_proxy"])
+    if home_xt is None:
+        home_xt = progression_ctx.get("home_xt_proxy", home_lineup_metrics.get("xt_proxy"))
+    if away_xt is None:
+        away_xt = progression_ctx.get("away_xt_proxy", away_lineup_metrics.get("xt_proxy"))
+
+    key_matchups = sim.get("key_matchups", []) if isinstance(sim, dict) else []
+    key_matchups = key_matchups if isinstance(key_matchups, list) else []
+    key_matchups_text = "\n".join([f"- {m}" for m in key_matchups[:6]]) if key_matchups else "- N/A"
+
+    position_battles = sim.get("position_battles", []) if isinstance(sim, dict) else []
+    position_battles = position_battles if isinstance(position_battles, list) else []
+    if position_battles:
+        battle_rows = []
+        for battle in position_battles[:8]:
+            if not isinstance(battle, dict):
+                continue
+            perspective = "Home" if battle.get("perspective") == "home" else "Away"
+            edge = str(battle.get("edge", "even")).lower()
+            if edge == "home":
+                edge_label = home
+            elif edge == "away":
+                edge_label = away
+            else:
+                edge_label = "สูสี"
+            battle_rows.append(
+                "- "
+                + f"{perspective} {battle.get('zone', 'N/A')}: "
+                + f"{battle.get('attacker', 'N/A')} vs {battle.get('defender', 'N/A')} "
+                + f"| duel={_fmt_num(battle.get('duel_score'))} "
+                + f"| edge={edge_label} "
+                + f"| xG/90={_fmt_num(battle.get('xg_p90'))} "
+                + f"| xA/90={_fmt_num(battle.get('xa_p90'))} "
+                + f"| xT={_fmt_num(battle.get('xt_proxy'))}"
+            )
+        position_battles_text = "\n".join(battle_rows) if battle_rows else "- N/A"
+    else:
+        position_battles_text = "- N/A"
+
+    math_winner_side = str(math_ctx.get("winner_side", "none")).lower()
+    if math_winner_side == "home":
+        math_winner_text = f"{home} ได้เปรียบ"
+    elif math_winner_side == "away":
+        math_winner_text = f"{away} ได้เปรียบ"
+    else:
+        math_winner_text = "ไม่มีฝั่งได้เปรียบชัดเจน"
 
     qc_text = " | ".join(qc_flags) if qc_flags else "No critical QC flags"
     home_rated_text = ", ".join(home_top_rated) if home_top_rated else "N/A"
@@ -1206,98 +1545,144 @@ def _build_gemini_prompt(
 - Expected Goals: {home} {_fmt_num(sim.get('expected_goals_home'))} | {away} {_fmt_num(sim.get('expected_goals_away'))}
 - Top 3 Scores: {sim.get('top3_scores', 'N/A')}
 - Data QC Flags: {qc_text}
+- Math Winner Signal: {math_winner_text} (home_ratio={_fmt_num(math_ctx.get('home_ratio'))}, away_ratio={_fmt_num(math_ctx.get('away_ratio'))})
+- Math Winner Bonus: {home} {_fmt_pct(_safe_float(math_ctx.get('home_bonus'), 0.0) * 100.0)} | {away} {_fmt_pct(_safe_float(math_ctx.get('away_bonus'), 0.0) * 100.0)}
+- Lineup Source: {home}={lineup_ctx.get('home_source', 'N/A')} ({lineup_ctx.get('home_matched', 0)}/11) | {away}={lineup_ctx.get('away_source', 'N/A')} ({lineup_ctx.get('away_matched', 0)}/11)
+- Lineup Confidence: {_fmt_pct(_safe_float(lineup_ctx.get('confidence'), 0.0) * 100.0)}
+- Lineup Metrics {home}: xG/90={_fmt_num(home_lineup_metrics.get('xg_p90'))}, xA/90={_fmt_num(home_lineup_metrics.get('xa_p90'))}, xT={_fmt_num(home_lineup_metrics.get('xt_proxy'))}, Attack={_fmt_num(home_lineup_metrics.get('attack'))}, Defense={_fmt_num(home_lineup_metrics.get('defense'))}
+- Lineup Metrics {away}: xG/90={_fmt_num(away_lineup_metrics.get('xg_p90'))}, xA/90={_fmt_num(away_lineup_metrics.get('xa_p90'))}, xT={_fmt_num(away_lineup_metrics.get('xt_proxy'))}, Attack={_fmt_num(away_lineup_metrics.get('attack'))}, Defense={_fmt_num(away_lineup_metrics.get('defense'))}
 
 Team Style Snapshot
-- {home}: PPDA={_fmt_num(home_ppda)}, Possession={_fmt_pct(home_poss)}, Goals/90={_fmt_num(home_g90)}, Conceded/90={_fmt_num(home_ga90)}
-- {away}: PPDA={_fmt_num(away_ppda)}, Possession={_fmt_pct(away_poss)}, Goals/90={_fmt_num(away_g90)}, Conceded/90={_fmt_num(away_ga90)}
+- {home}: PPDA={_fmt_num(home_ppda)}, Possession={_fmt_pct(home_poss)}, Goals/90={_fmt_num(home_g90)}, Conceded/90={_fmt_num(home_ga90)}, xG/90={_fmt_num(home_xg90)}, xA/90={_fmt_num(home_xa90)}, xT={_fmt_num(home_xt)}
+- {away}: PPDA={_fmt_num(away_ppda)}, Possession={_fmt_pct(away_poss)}, Goals/90={_fmt_num(away_g90)}, Conceded/90={_fmt_num(away_ga90)}, xG/90={_fmt_num(away_xg90)}, xA/90={_fmt_num(away_xa90)}, xT={_fmt_num(away_xt)}
 - Key Rated ({home}): {home_rated_text}
 - Key Rated ({away}): {away_rated_text}
 - Top Scorers ({home}): {home_scorer_text}
 - Top Scorers ({away}): {away_scorer_text}
+
+Model Key Matchups
+{key_matchups_text}
+
+Position Battles (Player vs Player)
+{position_battles_text}
 
 Live Context / Team News
 {context_text}
 
 ข้อกำหนดรูปแบบ (ต้องทำตาม)
 1) เปิดรายงานด้วยย่อหน้าเกริ่น 1 ย่อหน้า แล้วคั่นด้วย ---
-2) ต้องมีหัวข้อหลัก 2 ส่วนดังนี้:
+2) ลำดับการวิเคราะห์ต้องเป็น:
+   - เริ่มจากอ่าน Confirmed Lineups และบอกคุณภาพข้อมูล lineup
+   - ดึงข้อมูลผู้เล่นจากรายชื่อ แล้วเปรียบเทียบรายตำแหน่งจาก Position Battles
+   - วิเคราะห์แผนการเล่น + สถานะทีม โดยใช้ PPDA/xG/xA/xT เป็นหลัก
+   - สรุปผลจากการจำลอง (Top 3 Scores + Math Winner Signal) ก่อนฟันธง
+3) ต้องมีหัวข้อหลัก 2 ส่วนดังนี้:
 # **ส่วนที่ 1: การวิเคราะห์ภาพรวมทีม (Team Overview Analysis)**
 และ
 # **ส่วนที่ 2: การวิเคราะห์ผู้เล่นรายบุคคล (Player Analysis)**
-3) ส่วนที่ 1 ต้องมีหัวข้อย่อย:
+4) ส่วนที่ 1 ต้องมีหัวข้อย่อย:
 - สภาพทีม & ข่าวล่าสุด
 - การวิเคราะห์เชิงกลยุทธ์ & แทคติก
 - ตารางเปรียบเทียบกลยุทธ์ (ต้องเป็นตาราง Markdown)
 - ภาพรวมและแนวโน้ม
-- บทสรุปภาพรวม (ต้องฟันธงสกอร์และความมั่นใจ สูง/กลาง/ต่ำ)
-4) ส่วนที่ 2 ต้องมีหัวข้อย่อย:
+- บทสรุปภาพรวม (ต้องฟันธงสกอร์และความมั่นใจ สูง/กลาง/ต่ำ พร้อมอ้าง Top 3 Scores และ Math Winner Signal)
+5) ส่วนที่ 2 ต้องมีหัวข้อย่อย:
 - เจาะลึกผู้เล่นหลัก
 - ดวลกันตัวต่อตัว
 - ตัวทีเด็ด (X-Factor)
-5) ใช้โทนมืออาชีพ ชัดเจน มีเหตุผล ไม่เวอร์เกินข้อมูล
-6) ห้ามแต่งสถิติที่ไม่มีในอินพุต ถ้าข้อมูลไม่พอให้เขียนว่า "ข้อมูลไม่พอ"
-7) ปิดท้ายด้วยบรรทัด "รายงานโดย: AI Analyst Systems"
+6) ใช้โทนมืออาชีพ ชัดเจน มีเหตุผล ไม่เวอร์เกินข้อมูล
+7) ห้ามแต่งสถิติที่ไม่มีในอินพุต ถ้าข้อมูลไม่พอให้เขียนว่า "ข้อมูลไม่พอ"
+8) ปิดท้ายด้วยบรรทัด "รายงานโดย: AI Analyst Systems"
 """
 
 
-def _generate_ai_report(prompt, api_key, model="gemini-2.0-flash", max_retries=3, timeout_sec=90):
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+def _resolve_gemini_models(model=None):
+    if model:
+        return [str(model).strip()]
+
+    env_models = os.getenv("GEMINI_MODELS", "").strip()
+    if env_models:
+        models = [m.strip() for m in env_models.split(",") if m.strip()]
+        if models:
+            return models
+
+    env_model = os.getenv("GEMINI_MODEL", "").strip()
+    if env_model:
+        return [env_model]
+
+    # Keep a stable default first for free-tier compatibility, then fallback.
+    return ["gemini-flash-latest", "gemini-2.0-flash"]
+
+
+def _generate_ai_report(prompt, api_key, model=None, max_retries=3, timeout_sec=90):
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.7, "topP": 0.95},
     }
 
+    model_candidates = _resolve_gemini_models(model)
     last_error = None
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                api_url,
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=timeout_sec,
-            )
-        except Exception as ex:
-            last_error = f"request_failed: {ex}"
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            return None, last_error
 
-        if response.status_code == 200:
+    for current_model in model_candidates:
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
+
+        for attempt in range(max_retries):
             try:
-                data = response.json()
-            except Exception:
-                return None, "invalid_json_from_gemini"
-            text = _extract_gemini_text(data)
-            if text:
-                return text, None
-            return None, "gemini_returned_no_text"
+                response = requests.post(
+                    api_url,
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    timeout=timeout_sec,
+                )
+            except Exception as ex:
+                last_error = f"request_failed[{current_model}]: {ex}"
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                break
 
-        body = response.text.strip().replace("\n", " ")
-        if len(body) > 240:
-            body = body[:240] + "..."
-        last_error = f"gemini_http_{response.status_code}: {body}"
-        if response.status_code in {429, 500, 502, 503, 504} and attempt < max_retries - 1:
-            time.sleep(2 ** attempt)
-            continue
-        return None, last_error
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except Exception:
+                    return None, f"invalid_json_from_gemini[{current_model}]"
+                text = _extract_gemini_text(data)
+                if text:
+                    return text, None
+                return None, f"gemini_returned_no_text[{current_model}]"
+
+            body = response.text.strip().replace("\n", " ")
+            if len(body) > 240:
+                body = body[:240] + "..."
+            last_error = f"gemini_http_{response.status_code}[{current_model}]: {body}"
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                # Try next model candidate after final retry.
+                break
+
+            return None, last_error
 
     return None, last_error or "unknown_gemini_error"
 
 
 def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text):
+    home_xg_data = None
+    away_xg_data = None
     try:
         import xg_engine
         import simulator_v9
 
         eng = xg_engine.XGEngine(league)
-        h_xg = eng.get_team_rolling_stats(home, n_games=10)
-        a_xg = eng.get_team_rolling_stats(away, n_games=10)
-        if not (h_xg and a_xg):
+        home_xg_data = eng.get_team_rolling_stats(home, n_games=10)
+        away_xg_data = eng.get_team_rolling_stats(away, n_games=10)
+        if not (home_xg_data and away_xg_data):
             raise RuntimeError("xG data missing")
-        return simulator_v9.simulate_match(
-            h_xg,
-            a_xg,
+        sim = simulator_v9.simulate_match(
+            home_xg_data,
+            away_xg_data,
             home_sim_stats,
             away_sim_stats,
             iterations=10000,
@@ -1308,11 +1693,27 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
             home_progression=home_prog,
             away_progression=away_prog,
         )
+        sim["xg_input"] = {"home": home_xg_data, "away": away_xg_data}
+        sim.setdefault("lineup_context", {})
+        sim.setdefault("fatigue_context", {})
+        sim.setdefault("progression_context", {})
+        sim.setdefault("key_matchups", [])
+        sim.setdefault("position_battles", [])
+        sim.setdefault("math_winner_context", {})
+        return sim
     except Exception as ex:
         print(f"[Warning] simulator_v9 unavailable, fallback Poisson: {ex}")
         l_home = float((home_sim_stats or {}).get("goals_scored_per_game", 1.45))
         l_away = float((away_sim_stats or {}).get("goals_scored_per_game", 1.25))
-        return _poisson_summary(l_home, l_away)
+        sim = _poisson_summary(l_home, l_away)
+        sim["xg_input"] = {"home": home_xg_data or {}, "away": away_xg_data or {}}
+        sim["lineup_context"] = {}
+        sim["fatigue_context"] = {}
+        sim["progression_context"] = {}
+        sim["key_matchups"] = []
+        sim["position_battles"] = []
+        sim["math_winner_context"] = {}
+        return sim
 
 
 def _parse_args(argv):
@@ -1336,20 +1737,26 @@ def main():
 
     home_league = find_team_league(home)
     away_league = find_team_league(away)
-    league = home_league or away_league or "Premier_League"
+    stats_league = home_league or away_league or "Premier_League"
 
     if home_league and away_league and home_league != away_league:
-        print(f"[Warning] League mismatch: home={home_league}, away={away_league}. Using {league}.")
+        print(f"[Warning] League mismatch: home={home_league}, away={away_league}. Using {stats_league} for model data.")
 
-    home_sim_stats = get_simulation_stats(home, league)
-    away_sim_stats = get_simulation_stats(away, league)
-    home_prog = get_progression_stats(home, league)
-    away_prog = get_progression_stats(away, league)
+    home_sim_stats = get_simulation_stats(home, stats_league)
+    away_sim_stats = get_simulation_stats(away, stats_league)
+    home_prog = get_progression_stats(home, stats_league)
+    away_prog = get_progression_stats(away, stats_league)
 
-    context_text = _load_live_context("match_context.txt")
+    context_text = _load_live_context("match_context.txt", home_team=home, away_team=away)
+    context_headers = _parse_context_headers(context_text)
+    context_league = str(context_headers.get("league") or "").strip()
+    league = context_league or stats_league
+    if context_league and context_league != stats_league:
+        print(f"[Info] Context league '{context_league}' overrides output league (model data still uses '{stats_league}').")
+
     qc_flags, context_header = run_data_qc(home, away, league, context_text, home_league, away_league)
 
-    sim = _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text)
+    sim = _try_simulator(home, away, stats_league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text)
 
     result_1x2 = _pick_result_from_probs(sim["home_win_prob"], sim["draw_prob"], sim["away_win_prob"])
     score_unconditional = sim.get("most_likely_score", "1-1")
@@ -1399,6 +1806,21 @@ def main():
         away_top_rated=away_top_rated,
         max_scenarios=6,
     )
+
+    home_ppda = _pick_first(home_flow, ["calc_PPDA", "PPDA"])
+    away_ppda = _pick_first(away_flow, ["calc_PPDA", "PPDA"])
+    home_poss = _pick_first(home_squad, ["Poss", "averageBallPossession", "Possession"])
+    away_poss = _pick_first(away_squad, ["Poss", "averageBallPossession", "Possession"])
+    home_g90 = _pick_first(home_squad, ["Per 90 Minutes_Gls", "goalsScored_per_90", "Goals/90"])
+    away_g90 = _pick_first(away_squad, ["Per 90 Minutes_Gls", "goalsScored_per_90", "Goals/90"])
+    home_ga90 = _pick_first(home_squad, ["Per 90 Minutes_GA", "goalsConceded_per_90", "GA/90"])
+    away_ga90 = _pick_first(away_squad, ["Per 90 Minutes_GA", "goalsConceded_per_90", "GA/90"])
+    home_xg90 = _pick_first(home_squad, ["Per 90 Minutes_xG", "xG/90", "Expected_xG", "xG"])
+    away_xg90 = _pick_first(away_squad, ["Per 90 Minutes_xG", "xG/90", "Expected_xG", "xG"])
+    home_xa90 = _pick_first(home_squad, ["Per 90 Minutes_xAG", "xA/90", "Expected_xAG", "xA"])
+    away_xa90 = _pick_first(away_squad, ["Per 90 Minutes_xAG", "xA/90", "Expected_xAG", "xA"])
+    home_xt = _pick_first(home_flow, ["xT", "xt", "xT_per_90", "xt_proxy"], home_prog.get("xt_proxy"))
+    away_xt = _pick_first(away_flow, ["xT", "xt", "xT_per_90", "xt_proxy"], away_prog.get("xt_proxy"))
 
     analysis_file = _analysis_path(home, away)
     analysis_generated = False
@@ -1483,6 +1905,33 @@ def main():
         "Progression_Data": {"home": home_prog, "away": away_prog},
         "Tactical_Scenarios": tactical_scenarios,
         "Calibration_Context": sim.get("calibration_context", {}),
+        "Team_Style_Snapshot": {
+            "home": {
+                "ppda": _safe_float(home_ppda, None),
+                "possession_pct": _safe_float(home_poss, None),
+                "goals_per_90": _safe_float(home_g90, None),
+                "conceded_per_90": _safe_float(home_ga90, None),
+                "xg_per_90": _safe_float(home_xg90, None),
+                "xa_per_90": _safe_float(home_xa90, None),
+                "xt_proxy": _safe_float(home_xt, None),
+            },
+            "away": {
+                "ppda": _safe_float(away_ppda, None),
+                "possession_pct": _safe_float(away_poss, None),
+                "goals_per_90": _safe_float(away_g90, None),
+                "conceded_per_90": _safe_float(away_ga90, None),
+                "xg_per_90": _safe_float(away_xg90, None),
+                "xa_per_90": _safe_float(away_xa90, None),
+                "xt_proxy": _safe_float(away_xt, None),
+            },
+        },
+        "Lineup_Context": sim.get("lineup_context", {}),
+        "Fatigue_Context": sim.get("fatigue_context", {}),
+        "Progression_Context": sim.get("progression_context", {}),
+        "Key_Matchups": sim.get("key_matchups", []),
+        "Position_Battles": sim.get("position_battles", []),
+        "Math_Winner_Context": sim.get("math_winner_context", {}),
+        "XG_Input": sim.get("xg_input", {}),
         "AI_Report_Generated": analysis_generated,
         "AI_Report_Path": analysis_file if analysis_generated else None,
         "AI_Report_Error": None if analysis_generated else analysis_error,
