@@ -7,7 +7,9 @@ import re
 from bs4 import BeautifulSoup, Comment
 from tqdm import tqdm
 import undetected_chromedriver as uc
+import undetected_chromedriver as uc
 import pandas as pd
+from io import StringIO
 
 # --- Configuration ---
 BASE_OUTPUT_DIR = "Match Logs"
@@ -21,13 +23,9 @@ USER_LEAGUE_URLS = {
 
 # Categories to scrape and their URL slug components
 CATEGORIES = {
+    "Scores & Fixtures": "schedule",
     "Shooting": "shooting",
     "Goalkeeping": "keeper",
-    "Passing": "passing",
-    "Pass Types": "passing_types",
-    "Goal and Shot Creation": "gca",
-    "Defensive Actions": "defense",
-    "Possession": "possession",
     "Miscellaneous Stats": "misc"
 }
 
@@ -135,8 +133,28 @@ def get_soup(driver, url, max_retries=3):
         time.sleep(5)
     return None
 
-def clean_header(df):
-    """Flattens multi-level columns."""
+def extract_column_mapping(table_soup):
+    """Extracts a mapping of short column names to their full aria-label names."""
+    mapping = {}
+    thead = table_soup.find('thead')
+    if thead:
+        trs = thead.find_all('tr')
+        if len(trs) > 0:
+            last_tr = trs[-1] # Usually the bottom most header row has the actual names
+            for th in last_tr.find_all(['th', 'td']):
+                short_name = th.text.strip()
+                full_name = th.get('aria-label', '').strip()
+                if full_name and full_name != short_name:
+                    mapping[short_name] = full_name
+                else:
+                    mapping[short_name] = short_name
+    return mapping
+
+def clean_header(df, col_mapping=None):
+    """Flattens multi-level columns and renames to full columns if mapping provided."""
+    if col_mapping is None:
+        col_mapping = {}
+
     if isinstance(df.columns, pd.MultiIndex):
         new_cols = []
         for col in df.columns:
@@ -144,13 +162,25 @@ def clean_header(df):
             c0 = str(col[0]).strip()
             c1 = str(col[1]).strip()
             
+            c1_mapped = col_mapping.get(c1, c1)
+            c0_mapped = col_mapping.get(c0, c0)
+            
             if "Unnamed" in c0:
-                new_cols.append(c1)
+                new_cols.append(c1_mapped)
             elif "Unnamed" in c1:
-                new_cols.append(c0)
+                new_cols.append(c0_mapped)
             else:
-                new_cols.append(f"{c0}_{c1}")
+                new_cols.append(f"{c0}_{c1_mapped}")
         df.columns = new_cols
+    else:
+        df.columns = [col_mapping.get(str(c).strip(), str(c).strip()) for c in df.columns]
+        
+    # Handle duplicates by appending _1, _2
+    cols = pd.Series(df.columns)
+    for dup in cols[cols.duplicated()].unique():
+        cols[cols[cols == dup].index.values.tolist()] = [dup + '_' + str(i) if i != 0 else dup for i in range(sum(cols == dup))]
+    df.columns = cols
+    
     return df
 
 def get_team_urls(driver, league_url):
@@ -276,8 +306,9 @@ def process_team(driver, league_name, team_name, team_rel_url):
                 
                 if table:
                     try:
-                        df = pd.read_html(str(table))[0]
-                        df = clean_header(df)
+                        col_mapping = extract_column_mapping(table)
+                        df = pd.read_html(StringIO(str(table)))[0]
+                        df = clean_header(df, col_mapping)
                         if 'Date' in df.columns:
                             df = df[df['Date'] != 'Date']
                         
