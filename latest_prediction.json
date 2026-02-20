@@ -73,6 +73,59 @@
         ]
     },
     "Model_Version": "v9",
+    "Model_Core": "v9",
+    "Model_Core_Context": {
+        "requested_core": "v9",
+        "active_core": "v9",
+        "fallback_reason": null,
+        "env_resolution": {
+            "requested": "v9",
+            "resolved": "v9",
+            "fallback_reason": null
+        },
+        "demo_v2_available": true,
+        "demo_v2_source_confidence": 0.895,
+        "hybrid_enabled": true,
+        "hybrid_context": {
+            "enabled": true,
+            "weights": {
+                "v9": 0.65,
+                "demo_v2": 0.35
+            },
+            "weights_context": {
+                "requested": "0.35",
+                "resolved": 0.35,
+                "clipped": false
+            },
+            "layers": [
+                {
+                    "layer": "v9_lambda",
+                    "home": 1.535,
+                    "away": 1.3353
+                },
+                {
+                    "layer": "demo_v2_lambda",
+                    "home": 1.924,
+                    "away": 0.629
+                },
+                {
+                    "layer": "weighted_blend",
+                    "home": 1.6712,
+                    "away": 1.0881
+                },
+                {
+                    "layer": "clip_bounds",
+                    "min": 0.25,
+                    "max": 3.8,
+                    "home": 1.6712,
+                    "away": 1.0881
+                }
+            ],
+            "clipped": false
+        },
+        "tactical_regime": "high_press",
+        "confidence_class": "low"
+    },
     "QC_Flags": [
         "Context match header 'Brentford vs Brighton & Hove Albion' does not match requested fixture 'Arsenal vs Liverpool'."
     ],
@@ -356,6 +409,9 @@
         "global_away_scale": 1.0000633,
         "league_home_scale": 1.0090045,
         "league_away_scale": 0.9910622,
+        "regime_key": "high_press",
+        "regime_home_scale": 1.0,
+        "regime_away_scale": 1.0,
         "home_team_attack_scale": 0.9984375,
         "home_team_defense_scale": 1.0015625,
         "away_team_attack_scale": 1.0,
@@ -393,6 +449,7 @@
         "away_adjustment": 0.01602754021688301,
         "tempo": 0.5590367606249425,
         "balance": 0.9917225352519172,
+        "regime": "high_press",
         "rho_adjustment": -0.012390205632559825
     },
     "Demo_v2_Shadow": {
@@ -400,17 +457,379 @@
         "status": "ok",
         "model": "demo_model_v2",
         "league_used": "Premier_League",
+        "unit_policy_used": "per_match",
+        "home_team_resolved": "Arsenal",
+        "away_team_resolved": "Liverpool",
         "home_win_prob": 66.08,
         "draw_prob": 24.0,
         "away_win_prob": 9.93,
-        "home_win_prob_mc": 68.26,
-        "draw_prob_mc": 20.42,
-        "away_win_prob_mc": 11.32,
+        "home_win_prob_mc": 68.0,
+        "draw_prob_mc": 20.55,
+        "away_win_prob_mc": 11.45,
         "expected_goals_home": 1.924,
         "expected_goals_away": 0.629,
         "most_likely_score": "2-0",
         "home_rating_source": "Weighted (Home) + PlayerImpact",
-        "away_rating_source": "Weighted (Away) + PlayerImpact"
+        "away_rating_source": "Weighted (Away) + PlayerImpact",
+        "confidence_class": "high",
+        "adapter_context": {
+            "league_resolution": {
+                "requested": "Premier_League",
+                "resolved": "Premier_League",
+                "method": "direct_map",
+                "confidence": 0.98
+            },
+            "unit_policy": {
+                "requested": "per_match",
+                "resolved": "per_match",
+                "fallback_reason": null
+            },
+            "team_mapping": {
+                "home": {
+                    "requested": "Arsenal",
+                    "resolved": "Arsenal",
+                    "method": "exact_alias",
+                    "confidence": 0.99
+                },
+                "away": {
+                    "requested": "Liverpool",
+                    "resolved": "Liverpool",
+                    "method": "exact_alias",
+                    "confidence": 0.99
+                }
+            },
+            "unit_report": {
+                "unit_policy": "per_match",
+                "rows": 20,
+                "coverage": 1.0,
+                "confidence": 0.8,
+                "metrics": {
+                    "expected_goals": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "expected_goals->per_match": 20
+                        }
+                    },
+                    "goalsconceded": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "goalsconceded->per_match": 20
+                        }
+                    },
+                    "shots": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "shots->per_match": 20
+                        }
+                    },
+                    "bigchances": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "bigchances->per_match": 20
+                        }
+                    },
+                    "penaltygoals": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "penaltygoals->per_match": 20
+                        }
+                    },
+                    "accuratepasses": {
+                        "resolved_rows": 20,
+                        "total_rows": 20,
+                        "source_counts": {
+                            "accuratepasses->per_match": 20
+                        }
+                    }
+                }
+            },
+            "source_confidence": 0.895
+        }
+    },
+    "Hybrid_Shadow": {
+        "home_win_prob": 50.986821733050746,
+        "draw_prob": 24.274204744845676,
+        "away_win_prob": 24.7379140748262,
+        "expected_goals_home": 1.6711798174139867,
+        "expected_goals_away": 1.08807368637139,
+        "most_likely_score": "1-1",
+        "top3_scores": "1-1 (11.5%), 1-0 (10.6%), 2-1 (9.6%)",
+        "base_exp_home": 1.4411184615384616,
+        "base_exp_away": 1.3817647615384614,
+        "bonus_applied": "HomeAdv x1.03 | Form +0.5% | Strength +0.3% | Lineup +0.2% | Progression H-0.7% A+0.5% | Tactical H+1.6% A+1.6% | Tactical tempo 0.56 balance 0.99 | Matchups H-1.5% A-1.5% | Calibration Hx1.037 Ax0.993 | DC rho -0.105 | Hybrid blend v9=0.65 demo_v2=0.35",
+        "model_version": "hybrid_v10",
+        "lineup_context": {
+            "home_source": "projected",
+            "away_source": "projected",
+            "home_matched": 0,
+            "away_matched": 0,
+            "home_lineup_metrics": {
+                "attack": 0.463739948305322,
+                "defense": 0.6687351802608614,
+                "overall": 0.5142388697421291,
+                "xg_p90": 0.2092260883484606,
+                "xa_p90": 0.12078557209654033,
+                "xt_proxy": 0.41121024976342985
+            },
+            "away_lineup_metrics": {
+                "attack": 0.4570377816144474,
+                "defense": 0.6404523427392637,
+                "overall": 0.49458985323403365,
+                "xg_p90": 0.2067014463370943,
+                "xa_p90": 0.12495235007960846,
+                "xt_proxy": 0.45649579762150383
+            },
+            "confidence": 0.0
+        },
+        "fatigue_context": {
+            "home_attack_penalty": 0.0,
+            "away_attack_penalty": 0.0,
+            "home_days_since_last": 8,
+            "away_days_since_last": 6
+        },
+        "calibration_context": {
+            "enabled": true,
+            "path": "model_calibration.json",
+            "home_multiplier": 1.0365071361961444,
+            "away_multiplier": 0.9926735669470057,
+            "global_home_scale": 1.0288648,
+            "global_away_scale": 1.0000633,
+            "league_home_scale": 1.0090045,
+            "league_away_scale": 0.9910622,
+            "regime_key": "high_press",
+            "regime_home_scale": 1.0,
+            "regime_away_scale": 1.0,
+            "home_team_attack_scale": 0.9984375,
+            "home_team_defense_scale": 1.0015625,
+            "away_team_attack_scale": 1.0,
+            "away_team_defense_scale": 1.0
+        },
+        "progression_context": {
+            "home_xt_proxy": 0.5570010347431511,
+            "away_xt_proxy": 0.6110440584416534,
+            "home_strength": 0.4437415783981967,
+            "away_strength": 0.49821780140923205,
+            "home_adjustment": -0.007340353246081631,
+            "away_adjustment": 0.004896673708459493,
+            "home_counter_index": 0.24956142661623126,
+            "away_counter_index": 0.33002574224502984,
+            "home_u_shape_risk": 0.35757317187723187,
+            "away_u_shape_risk": 0.3441979738651361
+        },
+        "tactical_context": {
+            "enabled": true,
+            "home": {
+                "ppda": 4.738623103850641,
+                "ppda_opp": 4.878467635402906,
+                "field_tilt": 0.6291353594258159,
+                "high_error_rate": 17.0,
+                "directness": 0.06058668371832787,
+                "big_chance_diff": 47.0,
+                "pressing_edge": 0.028665667583283212,
+                "tempo": 0.5328532507554968,
+                "completeness": 1.0,
+                "attack_signal": 0.2831323573770628,
+                "attack_adjustment": 0.015572279655738456
+            },
+            "away": {
+                "ppda": 4.878467635402906,
+                "ppda_opp": 4.738623103850641,
+                "field_tilt": 0.6799582265261559,
+                "high_error_rate": 19.0,
+                "directness": 0.06433655133535339,
+                "big_chance_diff": 16.0,
+                "pressing_edge": -0.029511638399480785,
+                "tempo": 0.585220270494388,
+                "completeness": 1.0,
+                "attack_signal": 0.29140982212514566,
+                "attack_adjustment": 0.01602754021688301
+            },
+            "home_adjustment": 0.015572279655738456,
+            "away_adjustment": 0.01602754021688301,
+            "tempo": 0.5590367606249425,
+            "balance": 0.9917225352519172,
+            "regime": "high_press",
+            "rho_adjustment": -0.012390205632559825
+        },
+        "key_matchups": [
+            "Home Left Flank: Leandro Trossard vs Ibrahima Konaté (-0.24)",
+            "Home Right Flank: Bukayo Saka vs Virgil van Dijk (-0.16)",
+            "Home Central 9: Viktor Gyökeres vs Miloš Kerkez (-0.28)",
+            "Home Midfield Control: Eberechi Eze vs Florian Wirtz (-0.07)"
+        ],
+        "position_battles": [
+            {
+                "perspective": "home",
+                "zone": "Left Flank",
+                "attacker": "Leandro Trossard",
+                "defender": "Ibrahima Konaté",
+                "attack_value": 0.6154090052341945,
+                "defense_value": 0.859831775782883,
+                "xg_p90": 0.2632753815527538,
+                "xa_p90": 0.14890893503649635,
+                "xt_proxy": 0.5997072064513249,
+                "duel_score": -0.24442277054868844,
+                "edge": "away"
+            },
+            {
+                "perspective": "home",
+                "zone": "Right Flank",
+                "attacker": "Bukayo Saka",
+                "defender": "Virgil van Dijk",
+                "attack_value": 0.7525291455384768,
+                "defense_value": 0.9140274316760062,
+                "xg_p90": 0.32020841300191205,
+                "xa_p90": 0.2932410797323136,
+                "xt_proxy": 0.7838836191984043,
+                "duel_score": -0.16149828613752937,
+                "edge": "away"
+            },
+            {
+                "perspective": "home",
+                "zone": "Central 9",
+                "attacker": "Viktor Gyökeres",
+                "defender": "Miloš Kerkez",
+                "attack_value": 0.469328601184356,
+                "defense_value": 0.6770716965755712,
+                "xg_p90": 0.45337783375314866,
+                "xa_p90": 0.07502942153652392,
+                "xt_proxy": 0.38684176149052285,
+                "duel_score": -0.27627250715592283,
+                "edge": "away"
+            },
+            {
+                "perspective": "home",
+                "zone": "Midfield Control",
+                "attacker": "Eberechi Eze",
+                "defender": "Florian Wirtz",
+                "attack_value": 0.5196605395513461,
+                "defense_value": 0.47027038476613897,
+                "xg_p90": 0.20339045936395758,
+                "xa_p90": 0.13507073030035335,
+                "xt_proxy": 0.5312946500383995,
+                "duel_score": -0.07249191172461303,
+                "edge": "even"
+            },
+            {
+                "perspective": "away",
+                "zone": "Left Flank",
+                "attacker": "Cody Gakpo",
+                "defender": "Jurriën Timber",
+                "attack_value": 0.626864566171312,
+                "defense_value": 0.7705165794228871,
+                "xg_p90": 0.2656898517673888,
+                "xa_p90": 0.2097954944127708,
+                "xt_proxy": 0.6811163749135115,
+                "duel_score": -0.14365201325157506,
+                "edge": "home"
+            },
+            {
+                "perspective": "away",
+                "zone": "Right Flank",
+                "attacker": "Mohamed Salah",
+                "defender": "Gabriel Magalhães",
+                "attack_value": 0.6117745211859055,
+                "defense_value": 0.8921875722314827,
+                "xg_p90": 0.3555497722836695,
+                "xa_p90": 0.21111100325309043,
+                "xt_proxy": 0.6936919487461712,
+                "duel_score": -0.28041305104557723,
+                "edge": "home"
+            },
+            {
+                "perspective": "away",
+                "zone": "Central 9",
+                "attacker": "Hugo Ekitiké",
+                "defender": "William Saliba",
+                "attack_value": 0.6655340883529468,
+                "defense_value": 0.7612834093149023,
+                "xg_p90": 0.5113894736842105,
+                "xa_p90": 0.11899114756578946,
+                "xt_proxy": 0.6173557899838265,
+                "duel_score": -0.13901368877804593,
+                "edge": "home"
+            }
+        ],
+        "math_winner_context": {
+            "winner_side": "none",
+            "home_ratio": 1.0531174829242984,
+            "away_ratio": 0.9495616739959517,
+            "home_bonus": 0.0,
+            "away_bonus": 0.0,
+            "ratio_threshold": 1.12
+        },
+        "xg_input": {
+            "home": {
+                "team": "Arsenal",
+                "file_used": "Arsenal.xlsx",
+                "games_played": 43,
+                "form_last_5": 13,
+                "attack": {
+                    "xg_per_game": 1.725
+                },
+                "defense": {
+                    "xga_per_game": 1.08947
+                },
+                "xg_source": "proxy:shots_sot_goals",
+                "xga_source": "proxy:ga_sota_save"
+            },
+            "away": {
+                "team": "Liverpool",
+                "file_used": "Liverpool.xlsx",
+                "games_played": 42,
+                "form_last_5": 12,
+                "attack": {
+                    "xg_per_game": 2.032
+                },
+                "defense": {
+                    "xga_per_game": 0.877
+                },
+                "xg_source": "proxy:shots_sot_goals",
+                "xga_source": "proxy:ga_sota_save"
+            }
+        },
+        "hybrid_context": {
+            "enabled": true,
+            "weights": {
+                "v9": 0.65,
+                "demo_v2": 0.35
+            },
+            "weights_context": {
+                "requested": "0.35",
+                "resolved": 0.35,
+                "clipped": false
+            },
+            "layers": [
+                {
+                    "layer": "v9_lambda",
+                    "home": 1.535,
+                    "away": 1.3353
+                },
+                {
+                    "layer": "demo_v2_lambda",
+                    "home": 1.924,
+                    "away": 0.629
+                },
+                {
+                    "layer": "weighted_blend",
+                    "home": 1.6712,
+                    "away": 1.0881
+                },
+                {
+                    "layer": "clip_bounds",
+                    "min": 0.25,
+                    "max": 3.8,
+                    "home": 1.6712,
+                    "away": 1.0881
+                }
+            ],
+            "clipped": false
+        }
     },
     "Team_Style_Snapshot": {
         "home": {

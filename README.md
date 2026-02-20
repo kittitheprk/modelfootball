@@ -183,3 +183,34 @@ python -m unittest tests/test_automation_paths.py tests/test_full_system.py test
 - ใช้ชื่อทีมให้ตรงกับชื่อใน dataset เพื่อ match ได้ถูกต้อง
 - Pipeline scraping พึ่งพาโครงสร้างเว็บภายนอก — ถ้าเว็บเปลี่ยนอาจต้องปรับสคริปต์
 - ผลลัพธ์เป็น **ความน่าจะเป็น** ไม่ใช่การการันตีผลแข่งขัน
+
+## V10 Quick Update (2026-02-20)
+
+- `MODEL_CORE` router is now available via env var: `v9` (default), `demo_v2`, `hybrid`.
+- `demo_v2` now runs through a production-safe adapter with:
+- robust league/team mapping
+- unit policy control via `DEMO_V2_UNIT_POLICY=raw|per_match|per_90`
+- adapter source confidence captured in output context
+- `hybrid` mode blends lambda from `v9` and `demo_v2` with bounded clipping and decomposition logs.
+- `latest_prediction.json` now includes:
+- `Model_Core`
+- `Model_Core_Context`
+- `Hybrid_Shadow`
+- Rolling-origin comparison backtest is available:
+- `python scripts/backtest_model_cores.py --tracker prediction_tracker.xlsx`
+
+### MODEL_CORE examples
+
+```powershell
+# default (v9)
+python analyze_match.py Arsenal Liverpool
+
+# force demo_v2
+$env:MODEL_CORE = "demo_v2"
+python analyze_match.py Arsenal Liverpool
+
+# hybrid blending
+$env:MODEL_CORE = "hybrid"
+$env:HYBRID_DEMO_WEIGHT = "0.35"
+python analyze_match.py Arsenal Liverpool
+```

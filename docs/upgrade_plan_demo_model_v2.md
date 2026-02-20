@@ -4,6 +4,22 @@ Status: Active draft
 Owner: Pending  
 Last updated: 2026-02-20
 
+## Progress Snapshot (2026-02-20)
+
+Completed in this iteration:
+- Baseline commit frozen before V10 work.
+- `MODEL_CORE` router implemented (`v9 | demo_v2 | hybrid`, default `v9`).
+- `demo_v2` adapter hardened (league/team resolution, unit policy, source confidence context).
+- Hybrid lambda blending implemented with bounded clipping and decomposition logs.
+- Tactical regime calibration hooks added (`by_regime`) across simulator + tracker calibration build.
+- Rolling-origin comparison script added: `scripts/backtest_model_cores.py`.
+- Report appendix expanded to compare `v9`, `demo_v2`, `hybrid` with delta 1X2/xG and confidence class.
+- New tests added for router, adapter units, hybrid stability, and prediction schema regression.
+
+Remaining:
+- Refresh calibration artifact from latest tracker data and review regime buckets.
+- Final validation pass on full command set and tracker integration in real run.
+
 ## 1) Vision
 
 Build a trustworthy pre-match prediction platform that optimizes long-run probability quality, not one-match hit rate.
@@ -170,4 +186,3 @@ Phase 5: Continuous monitoring
 3. Add rolling-origin evaluation script for side-by-side (`v9` vs `demo_v2` vs `hybrid`).
 4. Add tactical-regime calibration table to `model_calibration.json`.
 5. Add reliability report section (per league, per regime, per confidence bucket).
-

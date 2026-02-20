@@ -1,0 +1,56 @@
+{
+    "generated_at": "2026-02-20 12:10:17",
+    "tracker_path": "prediction_tracker.xlsx",
+    "rows_evaluated": 1,
+    "overall": {
+        "v9": {
+            "n_matches": 1,
+            "brier_1x2": 0.7473,
+            "log_loss_1x2": 1.2221,
+            "calibration_gap": 0.7054,
+            "score_mae": 0.0
+        },
+        "demo_v2": {
+            "n_matches": 1,
+            "brier_1x2": 0.5656,
+            "log_loss_1x2": 0.9461,
+            "calibration_gap": 0.6118,
+            "score_mae": 1.0
+        },
+        "hybrid": {
+            "n_matches": 1,
+            "brier_1x2": 0.7582,
+            "log_loss_1x2": 1.2385,
+            "calibration_gap": 0.7102,
+            "score_mae": 0.0
+        }
+    },
+    "rolling_origin": [
+        {
+            "index": 1,
+            "date": "2026-02-19",
+            "match": "Milan vs Como",
+            "v9": {
+                "n_matches": 1,
+                "brier_1x2": 0.7473,
+                "log_loss_1x2": 1.2221,
+                "calibration_gap": 0.7054,
+                "score_mae": 0.0
+            },
+            "demo_v2": {
+                "n_matches": 1,
+                "brier_1x2": 0.5656,
+                "log_loss_1x2": 0.9461,
+                "calibration_gap": 0.6118,
+                "score_mae": 1.0
+            },
+            "hybrid": {
+                "n_matches": 1,
+                "brier_1x2": 0.7582,
+                "log_loss_1x2": 1.2385,
+                "calibration_gap": 0.7102,
+                "score_mae": 0.0
+            }
+        }
+    ]
+}

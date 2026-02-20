@@ -245,7 +245,22 @@ def _blend_scale(raw_scale, reliability):
     return 1.0 + ((base - 1.0) * rel)
 
 
-def _apply_model_calibration(lambda_home, lambda_away, calibration, league, home_team, away_team):
+def _regime_calibration_entry(by_regime, regime_key):
+    if not by_regime or not regime_key:
+        return None
+
+    direct = by_regime.get(regime_key)
+    if isinstance(direct, dict):
+        return direct
+
+    target = _norm_text(regime_key)
+    for key, value in by_regime.items():
+        if _norm_text(key) == target and isinstance(value, dict):
+            return value
+    return None
+
+
+def _apply_model_calibration(lambda_home, lambda_away, calibration, league, home_team, away_team, tactical_regime=None):
     ctx = {
         "enabled": False,
         "path": CALIBRATION_PATH,
@@ -255,6 +270,9 @@ def _apply_model_calibration(lambda_home, lambda_away, calibration, league, home
         "global_away_scale": 1.0,
         "league_home_scale": 1.0,
         "league_away_scale": 1.0,
+        "regime_key": str(tactical_regime or "unknown"),
+        "regime_home_scale": 1.0,
+        "regime_away_scale": 1.0,
     }
     if not calibration or not isinstance(calibration, dict):
         return lambda_home, lambda_away, ctx
@@ -300,6 +318,16 @@ def _apply_model_calibration(lambda_home, lambda_away, calibration, league, home
         ctx["home_team_defense_scale"] = h_defense
         ctx["away_team_attack_scale"] = a_attack
         ctx["away_team_defense_scale"] = a_defense
+
+    by_regime = calibration.get("by_regime", {}) if isinstance(calibration.get("by_regime"), dict) else {}
+    regime_row = _regime_calibration_entry(by_regime, tactical_regime)
+    if isinstance(regime_row, dict):
+        regime_home = _blend_scale(regime_row.get("home_scale"), regime_row.get("reliability"))
+        regime_away = _blend_scale(regime_row.get("away_scale"), regime_row.get("reliability"))
+        home_multiplier *= regime_home
+        away_multiplier *= regime_away
+        ctx["regime_home_scale"] = regime_home
+        ctx["regime_away_scale"] = regime_away
 
     home_multiplier = _clip(home_multiplier, 0.90, 1.12)
     away_multiplier = _clip(away_multiplier, 0.90, 1.12)
@@ -1214,6 +1242,27 @@ def _build_tactical_inputs(flow_team, flow_opp):
     }
 
 
+def _classify_tactical_regime(tactical_ctx):
+    if not isinstance(tactical_ctx, dict) or not tactical_ctx.get("enabled"):
+        return "unknown"
+
+    home = tactical_ctx.get("home", {}) if isinstance(tactical_ctx.get("home"), dict) else {}
+    away = tactical_ctx.get("away", {}) if isinstance(tactical_ctx.get("away"), dict) else {}
+    ppda_home = _safe_float(home.get("ppda"), 8.0)
+    ppda_away = _safe_float(away.get("ppda"), 8.0)
+    avg_ppda = (ppda_home + ppda_away) / 2.0
+    tempo = _safe_float(tactical_ctx.get("tempo"), 0.5)
+    balance = _safe_float(tactical_ctx.get("balance"), 0.5)
+
+    if avg_ppda <= 7.5 and tempo >= 0.55:
+        return "high_press"
+    if tempo >= 0.68:
+        return "transition_heavy"
+    if avg_ppda >= 11.0 and balance >= 0.58:
+        return "low_block"
+    return "balanced"
+
+
 def _progression_strength(prog):
     if not prog:
         return 0.5
@@ -1497,6 +1546,24 @@ def simulate_match(
         # v9 signals are additive; if anything fails, we keep v8-compatible behavior.
         pass
 
+    if tactical_ctx.get("enabled"):
+        home_tempo = _safe_float(tactical_ctx.get("home", {}).get("tempo"), 0.5)
+        away_tempo = _safe_float(tactical_ctx.get("away", {}).get("tempo"), 0.5)
+        tempo = _clip((home_tempo + away_tempo) / 2.0, 0.0, 1.0)
+
+        home_sig = _safe_float(tactical_ctx.get("home", {}).get("attack_signal"), 0.0)
+        away_sig = _safe_float(tactical_ctx.get("away", {}).get("attack_signal"), 0.0)
+        balance = _clip(1.0 - abs(home_sig - away_sig), 0.0, 1.0)
+
+        tactical_ctx["tempo"] = float(tempo)
+        tactical_ctx["balance"] = float(balance)
+    else:
+        tactical_ctx["tempo"] = None
+        tactical_ctx["balance"] = None
+
+    tactical_regime = _classify_tactical_regime(tactical_ctx)
+    tactical_ctx["regime"] = tactical_regime
+
     calibration = _load_model_calibration(CALIBRATION_PATH)
     lambda_home, lambda_away, calibration_ctx = _apply_model_calibration(
         lambda_home=lambda_home,
@@ -1505,6 +1572,7 @@ def simulate_match(
         league=league,
         home_team=home_team,
         away_team=away_team,
+        tactical_regime=tactical_regime,
     )
 
     lambda_home = _clip(lambda_home, 0.25, 3.8)
@@ -1515,24 +1583,15 @@ def simulate_match(
     rho = -0.03 - (0.07 * close)
 
     if tactical_ctx.get("enabled"):
-        home_tempo = _safe_float(tactical_ctx.get("home", {}).get("tempo"), 0.5)
-        away_tempo = _safe_float(tactical_ctx.get("away", {}).get("tempo"), 0.5)
-        tempo = _clip((home_tempo + away_tempo) / 2.0, 0.0, 1.0)
-
-        home_sig = _safe_float(tactical_ctx.get("home", {}).get("attack_signal"), 0.0)
-        away_sig = _safe_float(tactical_ctx.get("away", {}).get("attack_signal"), 0.0)
-        balance = _clip(1.0 - abs(home_sig - away_sig), 0.0, 1.0)
+        tempo = _safe_float(tactical_ctx.get("tempo"), 0.5)
+        balance = _safe_float(tactical_ctx.get("balance"), 0.5)
 
         rho += (tempo - 0.5) * 0.04
         rho += (0.5 - balance) * 0.03
         rho = _clip(rho, -0.13, -0.01)
 
-        tactical_ctx["tempo"] = float(tempo)
-        tactical_ctx["balance"] = float(balance)
         tactical_ctx["rho_adjustment"] = float(rho + (0.03 + (0.07 * close)))
     else:
-        tactical_ctx["tempo"] = None
-        tactical_ctx["balance"] = None
         tactical_ctx["rho_adjustment"] = 0.0
 
     prob_matrix = _build_score_matrix(lambda_home, lambda_away, max_goals=10, rho=rho)

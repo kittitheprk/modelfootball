@@ -97,6 +97,7 @@ class TestSimulatorV9(unittest.TestCase):
         self.assertTrue(tactical_ctx.get("enabled"))
         self.assertGreater(tactical_ctx.get("home_adjustment", 0.0), 0.0)
         self.assertLess(tactical_ctx.get("away_adjustment", 0.0), 0.0)
+        self.assertIn("regime", tactical_ctx)
         self.assertGreater(with_tactical["expected_goals_home"], base["expected_goals_home"])
         self.assertLess(with_tactical["expected_goals_away"], base["expected_goals_away"])
 
