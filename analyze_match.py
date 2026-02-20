@@ -1814,7 +1814,18 @@ def _generate_ai_report(prompt, api_key, model=None, max_retries=3, timeout_sec=
     return None, last_error or "unknown_gemini_error"
 
 
-def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text):
+def _try_simulator(
+    home,
+    away,
+    league,
+    home_sim_stats,
+    away_sim_stats,
+    home_prog,
+    away_prog,
+    context_text,
+    home_flow=None,
+    away_flow=None,
+):
     home_xg_data = None
     away_xg_data = None
     try:
@@ -1838,6 +1849,8 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
             context_text=context_text,
             home_progression=home_prog,
             away_progression=away_prog,
+            home_flow=home_flow,
+            away_flow=away_flow,
         )
         sim["xg_input"] = {"home": home_xg_data, "away": away_xg_data}
         sim.setdefault("lineup_context", {})
@@ -1860,6 +1873,155 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
         sim["position_battles"] = []
         sim["math_winner_context"] = {}
         return sim
+
+
+def _normalize_league_for_demo_v2(league_name):
+    raw = str(league_name or "").strip()
+    if not raw:
+        return "All"
+    normalized = _normalize_text(raw).replace(" ", "_")
+    mapping = {
+        "premier_league": "Premier_League",
+        "la_liga": "La_Liga",
+        "serie_a": "Serie_A",
+        "bundesliga": "Bundesliga",
+        "ligue_1": "Ligue_1",
+    }
+    return mapping.get(normalized, "All")
+
+
+def _run_demo_v2_shadow(home_team, away_team, league):
+    league_key = _normalize_league_for_demo_v2(league)
+    try:
+        import numpy as np
+
+        from demo_model_v2.data_loader import DataLoader
+        from demo_model_v2.feature_engine import FeatureEngine
+        from demo_model_v2.match_log_loader import MatchLogLoader
+        from demo_model_v2.player_impact_engine import PlayerImpactEngine
+        from demo_model_v2.poisson_model import PoissonModel
+        from demo_model_v2.simulator import MatchSimulator
+    except Exception as ex:
+        return {
+            "enabled": False,
+            "status": "unavailable",
+            "reason": f"import_error: {ex}",
+            "league_used": league_key,
+        }
+
+    try:
+        loader = DataLoader("sofascore_team_data")
+        df_raw = loader.load_data(league_key)
+        engine = FeatureEngine()
+        df_processed = engine.calculate_feature_metrics(df_raw)
+
+        log_loader = MatchLogLoader("Match Logs")
+        impact_engine = PlayerImpactEngine("sofaplayer")
+        home_tax = impact_engine.calculate_missing_tax(home_team, league_key, None)
+        away_tax = impact_engine.calculate_missing_tax(away_team, league_key, None)
+
+        home_ratings = engine.get_team_ratings(
+            df_processed,
+            home_team,
+            match_log_loader=log_loader,
+            venue="Home",
+            player_tax=home_tax,
+        )
+        away_ratings = engine.get_team_ratings(
+            df_processed,
+            away_team,
+            match_log_loader=log_loader,
+            venue="Away",
+            player_tax=away_tax,
+        )
+
+        model = PoissonModel()
+        lambda_home, lambda_away = model.predict_match_lambdas(
+            home_ratings,
+            away_ratings,
+            league_avg_home_goals=1.6,
+            league_avg_away_goals=1.2,
+        )
+        matrix = model.get_score_probability_matrix(lambda_home, lambda_away)
+        score_idx = np.unravel_index(np.argmax(matrix), matrix.shape)
+        most_likely_score = f"{int(score_idx[0])}-{int(score_idx[1])}"
+
+        p_home = float(np.tril(matrix, -1).sum() * 100.0)
+        p_draw = float(np.trace(matrix) * 100.0)
+        p_away = float(np.triu(matrix, 1).sum() * 100.0)
+
+        mc = MatchSimulator().run_monte_carlo(lambda_home, lambda_away, n_sims=10000)
+
+        return {
+            "enabled": True,
+            "status": "ok",
+            "model": "demo_model_v2",
+            "league_used": league_key,
+            "home_win_prob": round(p_home, 2),
+            "draw_prob": round(p_draw, 2),
+            "away_win_prob": round(p_away, 2),
+            "home_win_prob_mc": round(float(mc.get("home_win", 0.0) * 100.0), 2),
+            "draw_prob_mc": round(float(mc.get("draw", 0.0) * 100.0), 2),
+            "away_win_prob_mc": round(float(mc.get("away_win", 0.0) * 100.0), 2),
+            "expected_goals_home": round(float(lambda_home), 3),
+            "expected_goals_away": round(float(lambda_away), 3),
+            "most_likely_score": most_likely_score,
+            "home_rating_source": home_ratings.get("source"),
+            "away_rating_source": away_ratings.get("source"),
+        }
+    except Exception as ex:
+        return {
+            "enabled": False,
+            "status": "failed",
+            "reason": str(ex),
+            "league_used": league_key,
+        }
+
+
+def _build_demo_v2_appendix(home, away, demo_v2, sim_v9=None):
+    section_title = "## ภาคผนวก: Demo Model v2 (Shadow)"
+    if not isinstance(demo_v2, dict):
+        return f"{section_title}\n\n- สถานะ: ไม่ได้รัน (ไม่มีข้อมูล demo_v2)"
+
+    if not demo_v2.get("enabled"):
+        reason = demo_v2.get("reason") or demo_v2.get("status") or "unknown"
+        league_used = demo_v2.get("league_used", "N/A")
+        return (
+            f"{section_title}\n\n"
+            f"- สถานะ: ไม่พร้อมใช้งาน\n"
+            f"- ลีกที่พยายามใช้: `{league_used}`\n"
+            f"- เหตุผล: `{reason}`"
+        )
+
+    delta_lines = []
+    if isinstance(sim_v9, dict):
+        try:
+            delta_lines = [
+                f"- Delta vs v9 (Home): {float(demo_v2.get('home_win_prob', 0.0)) - float(sim_v9.get('home_win_prob', 0.0)):+.2f}%",
+                f"- Delta vs v9 (Draw): {float(demo_v2.get('draw_prob', 0.0)) - float(sim_v9.get('draw_prob', 0.0)):+.2f}%",
+                f"- Delta vs v9 (Away): {float(demo_v2.get('away_win_prob', 0.0)) - float(sim_v9.get('away_win_prob', 0.0)):+.2f}%",
+                f"- Delta xG Home: {float(demo_v2.get('expected_goals_home', 0.0)) - float(sim_v9.get('expected_goals_home', 0.0)):+.3f}",
+                f"- Delta xG Away: {float(demo_v2.get('expected_goals_away', 0.0)) - float(sim_v9.get('expected_goals_away', 0.0)):+.3f}",
+            ]
+        except Exception:
+            delta_lines = []
+
+    lines = [
+        section_title,
+        "",
+        "- สถานะ: รันสำเร็จ",
+        f"- ลีกที่ใช้: `{demo_v2.get('league_used', 'N/A')}`",
+        f"- โมเดล: `{demo_v2.get('model', 'demo_model_v2')}`",
+        f"- ความน่าจะเป็น 1X2 (Poisson Matrix): {home} {demo_v2.get('home_win_prob')}% | Draw {demo_v2.get('draw_prob')}% | {away} {demo_v2.get('away_win_prob')}%",
+        f"- ความน่าจะเป็น 1X2 (Monte Carlo): {home} {demo_v2.get('home_win_prob_mc')}% | Draw {demo_v2.get('draw_prob_mc')}% | {away} {demo_v2.get('away_win_prob_mc')}%",
+        f"- xG: {home} {demo_v2.get('expected_goals_home')} | {away} {demo_v2.get('expected_goals_away')}",
+        f"- สกอร์ที่น่าจะเป็นที่สุด: {demo_v2.get('most_likely_score', 'N/A')}",
+        f"- Source Ratings: Home={demo_v2.get('home_rating_source', 'N/A')} | Away={demo_v2.get('away_rating_source', 'N/A')}",
+    ]
+    if delta_lines:
+        lines.append("- Comparison to v9:")
+        lines.extend(delta_lines)
+    return "\n".join(lines)
 
 
 def _parse_args(argv):
@@ -1902,7 +2064,21 @@ def main():
 
     qc_flags, context_header = run_data_qc(home, away, league, context_text, home_league, away_league)
 
-    sim = _try_simulator(home, away, stats_league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text)
+    home_flow = get_game_flow_stats(home, league)
+    away_flow = get_game_flow_stats(away, league)
+    sim = _try_simulator(
+        home,
+        away,
+        stats_league,
+        home_sim_stats,
+        away_sim_stats,
+        home_prog,
+        away_prog,
+        context_text,
+        home_flow=home_flow,
+        away_flow=away_flow,
+    )
+    demo_v2_shadow = _run_demo_v2_shadow(home, away, stats_league)
 
     result_1x2 = _pick_result_from_probs(sim["home_win_prob"], sim["draw_prob"], sim["away_win_prob"])
     score_unconditional = sim.get("most_likely_score", "1-1")
@@ -1932,8 +2108,6 @@ def main():
                 f"{target_score_analysis['current_probability']:.2f}% baseline probability."
             )
 
-    home_flow = get_game_flow_stats(home, league)
-    away_flow = get_game_flow_stats(away, league)
     home_squad = get_squad_stats(home, league)
     away_squad = get_squad_stats(away, league)
     home_opta = get_opta_team_stats(home, league)
@@ -2025,6 +2199,9 @@ def main():
         )
         ai_report, analysis_error = _generate_ai_report(prompt=prompt, api_key=gemini_key)
         if ai_report:
+            demo_appendix = _build_demo_v2_appendix(home, away, demo_v2_shadow, sim_v9=sim)
+            if demo_appendix:
+                ai_report = ai_report.rstrip() + "\n\n---\n\n" + demo_appendix + "\n"
             os.makedirs("analyses", exist_ok=True)
             with open(analysis_file, "w", encoding="utf-8") as f:
                 f.write(ai_report)
@@ -2078,8 +2255,11 @@ def main():
         "Bet_Data": bet_data,
         "Bet_Detail": bet_detail,
         "Progression_Data": {"home": home_prog, "away": away_prog},
+        "Flow_Data": {"home": home_flow, "away": away_flow},
         "Tactical_Scenarios": tactical_scenarios,
         "Calibration_Context": sim.get("calibration_context", {}),
+        "Simulator_Tactical_Context": sim.get("tactical_context", {}),
+        "Demo_v2_Shadow": demo_v2_shadow,
         "Team_Style_Snapshot": {
             "home": {
                 "ppda": _safe_float(home_ppda, None),

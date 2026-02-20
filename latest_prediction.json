@@ -1,269 +1,341 @@
 {
     "Date": "2026-02-20",
-    "Match": "Brentford vs Brighton & Hove Albion",
-    "Match_Canonical": "Brentford vs Brighton & Hove Albion",
+    "Match": "Arsenal vs Liverpool",
+    "Match_Canonical": "Arsenal vs Liverpool",
     "League": "Premier_League",
-    "Home_Team": "Brentford",
-    "Away_Team": "Brighton & Hove Albion",
-    "Home_Team_Canonical": "Brentford",
-    "Away_Team_Canonical": "Brighton & Hove Albion",
-    "Pred_Home_Win": 44.72311205715126,
-    "Pred_Draw": 27.706772441921018,
-    "Pred_Away_Win": 27.570115500927717,
-    "Pred_Score": "1-0",
+    "Home_Team": "Arsenal",
+    "Away_Team": "Liverpool",
+    "Home_Team_Canonical": "Arsenal",
+    "Away_Team_Canonical": "Liverpool",
+    "Pred_Home_Win": 40.86724231811592,
+    "Pred_Draw": 27.212848053262668,
+    "Pred_Away_Win": 31.919909628621408,
+    "Pred_Score": "2-1",
     "Pred_Result": "Home",
     "Pred_Score_Unconditional": "1-1",
     "Pred_Result_1X2": "Home",
     "Pred_Result_From_Score": "Home",
-    "Pred_Aligned_Score_Prob": 10.771341277897378,
-    "Expected_Goals_Home": 1.503115595643723,
-    "Expected_Goals_Away": 1.13270558634861,
-    "Base_Expected_Goals_Home": 1.3785724076923076,
-    "Base_Expected_Goals_Away": 1.2190760923076924,
-    "Target_Score_Input": null,
-    "Target_Score_Analysis": null,
+    "Pred_Aligned_Score_Prob": 8.917020642891707,
+    "Expected_Goals_Home": 1.5350458729445953,
+    "Expected_Goals_Away": 1.3352672098021385,
+    "Base_Expected_Goals_Home": 1.4411184615384616,
+    "Base_Expected_Goals_Away": 1.3817647615384614,
+    "Target_Score_Input": "1-1",
+    "Target_Score_Analysis": {
+        "target_score": "1-1",
+        "target_result": "Draw",
+        "current_probability": 11.62,
+        "rank_in_score_grid": 1,
+        "realism_band": "high",
+        "top5_scores_now": [
+            {
+                "score": "1-1",
+                "probability": 11.62
+            },
+            {
+                "score": "2-1",
+                "probability": 8.92
+            },
+            {
+                "score": "1-0",
+                "probability": 8.7
+            },
+            {
+                "score": "1-2",
+                "probability": 7.76
+            },
+            {
+                "score": "0-1",
+                "probability": 7.57
+            }
+        ],
+        "xg_shift_scenario": {
+            "probability_goal": 15.68,
+            "goal_reached_with_reasonable_shift": false,
+            "probability_after_shift": 13.46,
+            "home_xg_current": 1.535,
+            "away_xg_current": 1.335,
+            "home_xg_required": 1.105,
+            "away_xg_required": 0.988,
+            "home_xg_change_pct": -28.0,
+            "away_xg_change_pct": -26.0
+        },
+        "hypotheses": [
+            "Arsenal should accept a lower-volume attack (-28.0% xG) and prioritize game control once leading.",
+            "Liverpool must be limited to about -26.0% below current attacking expectation through compact rest-defense and fewer central entries.",
+            "Game-state requirement: both teams must avoid late risk and keep chance quality moderate after 60'.",
+            "Key duel swing to watch: Home Left Flank: Leandro Trossard vs Ibrahima Konaté (-0.24)"
+        ],
+        "assumptions": [
+            "Uses current expected-goal surface from the active model output.",
+            "Search is constrained to roughly +/-28% xG shift per side to keep scenarios realistic.",
+            "Hypotheses are tactical interpretations of xG shift, not guaranteed outcomes."
+        ]
+    },
     "Model_Version": "v9",
-    "QC_Flags": [],
+    "QC_Flags": [
+        "Context match header 'Brentford vs Brighton & Hove Albion' does not match requested fixture 'Arsenal vs Liverpool'."
+    ],
     "Context_Header": {
         "match": "Brentford vs Brighton & Hove Albion",
-        "date": "2026-02-21",
+        "date": "2026-02-19",
         "league": "Premier_League"
     },
     "Bet_Data": {
-        "HDP_-3": 0.02910875795017422,
-        "HDP_-2": 0.09016881387165686,
-        "HDP_-1": 0.22803507910316184,
-        "HDP_0": 0.4574888873724403,
-        "HDP_1": 0.7140331600031948,
-        "HDP_2": 0.8869430886798835,
-        "HDP_3": 0.9652332763040796,
-        "Over_0.5": 0.9283353852920683,
-        "Under_0.5": 0.07166009925726606,
-        "Over_1.5": 0.7394521777660933,
-        "Under_1.5": 0.260543306783241,
-        "Over_2.5": 0.4905209981062843,
-        "Under_2.5": 0.5094744864430503,
-        "Over_3.5": 0.2718083060377297,
-        "Under_3.5": 0.728187178511605
+        "HDP_-3": 0.02684768615925314,
+        "HDP_-2": 0.08255718700950548,
+        "HDP_-1": 0.20839708291034495,
+        "HDP_0": 0.42081214499568126,
+        "HDP_1": 0.6686516108344346,
+        "HDP_2": 0.8534218983350688,
+        "HDP_3": 0.9486383519524051,
+        "Over_0.5": 0.9433123354928473,
+        "Under_0.5": 0.0566811779027237,
+        "Over_1.5": 0.7806196090131645,
+        "Under_1.5": 0.21937390438240661,
+        "Over_2.5": 0.5471300783719797,
+        "Under_2.5": 0.45286343502359155,
+        "Over_3.5": 0.3237340602107176,
+        "Under_3.5": 0.676259453184854
     },
     "Bet_Detail": {
         "HDP_-3": {
-            "win": 0.02910875795017422,
-            "push": 0.06106005592148263,
-            "loss": 0.9098266706776778
+            "win": 0.02684768615925314,
+            "push": 0.05570950085025236,
+            "loss": 0.9174363263860655
         },
         "HDP_-2": {
-            "win": 0.09016881387165686,
-            "push": 0.137866265231505,
-            "loss": 0.7719604054461727
+            "win": 0.08255718700950548,
+            "push": 0.12583989590083944,
+            "loss": 0.7915964304852261
         },
         "HDP_-1": {
-            "win": 0.22803507910316184,
-            "push": 0.22945380826927833,
-            "loss": 0.5425065971768944
+            "win": 0.20839708291034495,
+            "push": 0.21241506208533634,
+            "loss": 0.5791813683998899
         },
         "HDP_0": {
-            "win": 0.4574888873724403,
-            "push": 0.2565442726307548,
-            "loss": 0.2859623245461395
+            "win": 0.42081214499568126,
+            "push": 0.24783946583875344,
+            "loss": 0.3313419025611369
         },
         "HDP_1": {
-            "win": 0.7140331600031948,
-            "push": 0.17290992867668858,
-            "loss": 0.11305239586945079
+            "win": 0.6686516108344346,
+            "push": 0.18477028750063434,
+            "loss": 0.14657161506050248
         },
         "HDP_2": {
-            "win": 0.8869430886798835,
-            "push": 0.07829018762419605,
-            "loss": 0.03476220824525473
+            "win": 0.8534218983350688,
+            "push": 0.09521645361733645,
+            "loss": 0.05135516144316601
         },
         "HDP_3": {
-            "win": 0.9652332763040796,
-            "push": 0.026129504988801896,
-            "loss": 0.00863270325645284
+            "win": 0.9486383519524051,
+            "push": 0.03666652433704779,
+            "loss": 0.014688637106118223
         }
     },
     "Progression_Data": {
         "home": {
-            "xt_proxy": 0.4661929440678254,
-            "deep_completion_proxy": 5.256538461538462,
-            "progressive_runs_proxy": 5.234615384615385,
-            "u_shape_risk": 0.31520926766457386,
-            "counter_punch_index": 0.42054311646016124,
-            "prg_pass_dist": 133.73076923076923,
-            "prg_carry_dist": 6.153846153846154,
-            "big_created_p90": 2.269230769230769,
-            "inside_box_shots_p90": 7.923076923076923,
-            "fast_breaks_p90": 1.9615384615384615,
-            "corners_p90": 4.923076923076923,
-            "shots_on_target_p90": 4.038461538461538,
-            "long_balls_p90": 16.115384615384617,
+            "xt_proxy": 0.5570010347431511,
+            "deep_completion_proxy": 5.142692307692308,
+            "progressive_runs_proxy": 4.861538461538462,
+            "u_shape_risk": 0.35757317187723187,
+            "counter_punch_index": 0.24956142661623126,
+            "prg_pass_dist": 215.76923076923077,
+            "prg_carry_dist": 7.269230769230769,
+            "big_created_p90": 2.076923076923077,
+            "inside_box_shots_p90": 11.076923076923077,
+            "fast_breaks_p90": 1.1153846153846154,
+            "corners_p90": 6.038461538461538,
+            "shots_on_target_p90": 4.961538461538462,
+            "long_balls_p90": 13.461538461538462,
             "source": "team_stats_fallback"
         },
         "away": {
-            "xt_proxy": 0.4915281926028008,
-            "deep_completion_proxy": 3.6046153846153848,
-            "progressive_runs_proxy": 4.61923076923077,
-            "u_shape_risk": 0.43301010401328793,
-            "counter_punch_index": 0.13973897307982738,
-            "prg_pass_dist": 170.57692307692307,
-            "prg_carry_dist": 7.884615384615385,
-            "big_created_p90": 1.4615384615384615,
-            "inside_box_shots_p90": 8.307692307692308,
-            "fast_breaks_p90": 0.6153846153846154,
-            "corners_p90": 4.923076923076923,
-            "shots_on_target_p90": 4.230769230769231,
-            "long_balls_p90": 15.73076923076923,
+            "xt_proxy": 0.6110440584416534,
+            "deep_completion_proxy": 5.2542307692307695,
+            "progressive_runs_proxy": 5.842307692307693,
+            "u_shape_risk": 0.3441979738651361,
+            "counter_punch_index": 0.33002574224502984,
+            "prg_pass_dist": 275.46153846153845,
+            "prg_carry_dist": 8.384615384615385,
+            "big_created_p90": 2.1153846153846154,
+            "inside_box_shots_p90": 10.115384615384615,
+            "fast_breaks_p90": 1.5,
+            "corners_p90": 5.8076923076923075,
+            "shots_on_target_p90": 4.346153846153846,
+            "long_balls_p90": 16.73076923076923,
             "source": "team_stats_fallback"
+        }
+    },
+    "Flow_Data": {
+        "home": {
+            "Team_Name": "Arsenal",
+            "calc_PPDA": 4.738623103850641,
+            "calc_OPPDA": 8.661485319516407,
+            "calc_FieldTilt_Pct": 0.6291353594258159,
+            "calc_HighError_Rate": 17,
+            "calc_Directness": 0.06058668371832787,
+            "calc_BigChance_Diff": 47
+        },
+        "away": {
+            "Team_Name": "Liverpool",
+            "calc_PPDA": 4.878467635402906,
+            "calc_OPPDA": 7.691019786910198,
+            "calc_FieldTilt_Pct": 0.6799582265261559,
+            "calc_HighError_Rate": 19,
+            "calc_Directness": 0.06433655133535339,
+            "calc_BigChance_Diff": 16
         }
     },
     "Tactical_Scenarios": {
         "method": "heuristic_event_model_v1",
         "description": "Event probabilities estimated from PPDA, field tilt, progression proxies, and expected-goal surface.",
-        "match": "Brentford vs Brighton & Hove Albion",
+        "match": "Arsenal vs Liverpool",
         "model_expected_goals": {
-            "home": 1.503,
-            "away": 1.133
+            "home": 1.535,
+            "away": 1.335
         },
         "scenarios": [
             {
-                "team": "Brentford",
-                "scenario_code": "counter_after_absorb",
-                "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
-                "probability_pct": 38.29,
-                "goal_probability_pct": 13.2,
+                "team": "Arsenal",
+                "scenario_code": "set_piece_second_ball",
+                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
+                "probability_pct": 56.01,
+                "goal_probability_pct": 13.62,
                 "confidence": "high",
                 "sequence": [
-                    "Brentford ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
-                    "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
-                    "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box"
+                    "Arsenal ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
+                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
+                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
                 ],
                 "statistical_basis": {
-                    "counter_punch_index": 0.421,
-                    "fast_breaks_p90": 1.96,
-                    "field_tilt_team": 0.407,
-                    "field_tilt_opponent": 0.518,
-                    "inside_box_shots_p90": 7.92,
-                    "expected_goals_team": 1.503
+                    "corners_p90": 6.04,
+                    "field_tilt": 0.629,
+                    "inside_box_shots_p90": 11.08,
+                    "big_created_p90": 2.08,
+                    "expected_goals_team": 1.535
                 },
                 "rank": 1,
                 "impact_tier": "high"
             },
             {
-                "team": "Brentford",
+                "team": "Liverpool",
                 "scenario_code": "press_to_wide_release",
                 "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
-                "probability_pct": 33.67,
-                "goal_probability_pct": 12.03,
+                "probability_pct": 34.84,
+                "goal_probability_pct": 12.38,
                 "confidence": "high",
                 "sequence": [
-                    "Brentford บีบด้วย PPDA 5.05 เทียบคู่แข่ง 4.72",
-                    "Caoimhin Kelleher อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
+                    "Liverpool บีบด้วย PPDA 4.88 เทียบคู่แข่ง 4.74",
+                    "Virgil van Dijk อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
                     "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
                     "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที"
                 ],
                 "statistical_basis": {
-                    "ppda_team": 5.051,
-                    "ppda_opponent": 4.715,
-                    "high_error_rate": 15.0,
-                    "directness": 0.0953,
-                    "xt_proxy": 0.466,
-                    "counter_punch_index": 0.421,
-                    "long_balls_p90": 16.12,
-                    "expected_goals_team": 1.503
+                    "ppda_team": 4.878,
+                    "ppda_opponent": 4.739,
+                    "high_error_rate": 19.0,
+                    "directness": 0.0643,
+                    "xt_proxy": 0.611,
+                    "counter_punch_index": 0.33,
+                    "long_balls_p90": 16.73,
+                    "expected_goals_team": 1.335
                 },
                 "rank": 2,
                 "impact_tier": "high"
             },
             {
-                "team": "Brentford",
-                "scenario_code": "set_piece_second_ball",
-                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
-                "probability_pct": 45.46,
-                "goal_probability_pct": 11.04,
+                "team": "Arsenal",
+                "scenario_code": "press_to_wide_release",
+                "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
+                "probability_pct": 33.19,
+                "goal_probability_pct": 11.85,
                 "confidence": "high",
                 "sequence": [
-                    "Brentford ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
-                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
-                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
+                    "Arsenal บีบด้วย PPDA 4.74 เทียบคู่แข่ง 4.88",
+                    "Declan Rice อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
+                    "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
+                    "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที"
                 ],
                 "statistical_basis": {
-                    "corners_p90": 4.92,
-                    "field_tilt": 0.407,
-                    "inside_box_shots_p90": 7.92,
-                    "big_created_p90": 2.27,
-                    "expected_goals_team": 1.503
+                    "ppda_team": 4.739,
+                    "ppda_opponent": 4.878,
+                    "high_error_rate": 17.0,
+                    "directness": 0.0606,
+                    "xt_proxy": 0.557,
+                    "counter_punch_index": 0.25,
+                    "long_balls_p90": 13.46,
+                    "expected_goals_team": 1.535
                 },
                 "rank": 3,
                 "impact_tier": "high"
             },
             {
-                "team": "Brighton & Hove Albion",
-                "scenario_code": "press_to_wide_release",
-                "scenario": "กดดันสูงแล้วแทงบอลยาวหนีไลน์ให้ตัวรุกริมเส้นเข้าเขตอันตราย",
-                "probability_pct": 34.63,
-                "goal_probability_pct": 10.88,
+                "team": "Liverpool",
+                "scenario_code": "set_piece_second_ball",
+                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
+                "probability_pct": 48.64,
+                "goal_probability_pct": 11.73,
                 "confidence": "high",
                 "sequence": [
-                    "Brighton & Hove Albion บีบด้วย PPDA 4.72 เทียบคู่แข่ง 5.05",
-                    "Jan Paul van Hecke อ่านจังหวะแล้วเห็นตัวรุกยืนว่างริมเส้น",
-                    "เล่นบอลสูง/บอลวางข้ามแนวรับเข้า half-space เพื่อตัดหลังไลน์",
-                    "ตัวรุกแตะบอลแรกเข้าพื้นที่อันตรายและสร้างโอกาสยิงทันที"
+                    "Liverpool ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
+                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
+                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
                 ],
                 "statistical_basis": {
-                    "ppda_team": 4.715,
-                    "ppda_opponent": 5.051,
-                    "high_error_rate": 23.0,
-                    "directness": 0.0676,
-                    "xt_proxy": 0.492,
-                    "counter_punch_index": 0.14,
-                    "long_balls_p90": 15.73,
-                    "expected_goals_team": 1.133
+                    "corners_p90": 5.81,
+                    "field_tilt": 0.68,
+                    "inside_box_shots_p90": 10.12,
+                    "big_created_p90": 2.12,
+                    "expected_goals_team": 1.335
                 },
                 "rank": 4,
                 "impact_tier": "high"
             },
             {
-                "team": "Brighton & Hove Albion",
-                "scenario_code": "set_piece_second_ball",
-                "scenario": "กดพื้นที่ต่อเนื่องแล้วจบจากลูกตั้งเตะ/จังหวะเก็บตก",
-                "probability_pct": 41.31,
-                "goal_probability_pct": 9.32,
-                "confidence": "high",
-                "sequence": [
-                    "Brighton & Hove Albion ขยับเกมบุกจนได้ corner/free-kick ต่อเนื่อง",
-                    "โจมตีจุดตกบอลแรกและเก็บบอลสองหน้ากรอบเพื่อยิงซ้ำ",
-                    "หากบล็อกไม่ทัน มีโอกาสได้ shot on target จากจังหวะสอง"
-                ],
-                "statistical_basis": {
-                    "corners_p90": 4.92,
-                    "field_tilt": 0.518,
-                    "inside_box_shots_p90": 8.31,
-                    "big_created_p90": 1.46,
-                    "expected_goals_team": 1.133
-                },
-                "rank": 5,
-                "impact_tier": "medium"
-            },
-            {
-                "team": "Brighton & Hove Albion",
+                "team": "Liverpool",
                 "scenario_code": "counter_after_absorb",
                 "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
-                "probability_pct": 20.28,
-                "goal_probability_pct": 6.86,
+                "probability_pct": 30.51,
+                "goal_probability_pct": 10.78,
                 "confidence": "high",
                 "sequence": [
-                    "Brighton & Hove Albion ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
+                    "Liverpool ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
                     "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
                     "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box"
                 ],
                 "statistical_basis": {
-                    "counter_punch_index": 0.14,
-                    "fast_breaks_p90": 0.62,
-                    "field_tilt_team": 0.518,
-                    "field_tilt_opponent": 0.407,
-                    "inside_box_shots_p90": 8.31,
-                    "expected_goals_team": 1.133
+                    "counter_punch_index": 0.33,
+                    "fast_breaks_p90": 1.5,
+                    "field_tilt_team": 0.68,
+                    "field_tilt_opponent": 0.629,
+                    "inside_box_shots_p90": 10.12,
+                    "expected_goals_team": 1.335
+                },
+                "rank": 5,
+                "impact_tier": "high"
+            },
+            {
+                "team": "Arsenal",
+                "scenario_code": "counter_after_absorb",
+                "scenario": "ถอยรับแล้วสวนกลับเร็วเข้าช่องกว้างฝั่งอ่อน",
+                "probability_pct": 27.24,
+                "goal_probability_pct": 9.83,
+                "confidence": "high",
+                "sequence": [
+                    "Arsenal ปล่อยคู่แข่งครองบอลช่วงสั้นแล้วดักจังหวะเปลี่ยนเกม",
+                    "จ่ายบอลแรกทะลุช่องหรือออกริมเส้นเพื่อชิงความได้เปรียบเชิงพื้นที่",
+                    "เร่งเข้าเขตโทษใน 2-3 จังหวะ พร้อมจบจาก inside-box"
+                ],
+                "statistical_basis": {
+                    "counter_punch_index": 0.25,
+                    "fast_breaks_p90": 1.12,
+                    "field_tilt_team": 0.629,
+                    "field_tilt_opponent": 0.68,
+                    "inside_box_shots_p90": 11.08,
+                    "expected_goals_team": 1.535
                 },
                 "rank": 6,
                 "impact_tier": "medium"
@@ -278,55 +350,110 @@
     "Calibration_Context": {
         "enabled": true,
         "path": "model_calibration.json",
-        "home_multiplier": 1.0381292130916,
-        "away_multiplier": 0.9911249342372601,
+        "home_multiplier": 1.0365071361961444,
+        "away_multiplier": 0.9926735669470057,
         "global_home_scale": 1.0288648,
         "global_away_scale": 1.0000633,
         "league_home_scale": 1.0090045,
-        "league_away_scale": 0.9910622
+        "league_away_scale": 0.9910622,
+        "home_team_attack_scale": 0.9984375,
+        "home_team_defense_scale": 1.0015625,
+        "away_team_attack_scale": 1.0,
+        "away_team_defense_scale": 1.0
+    },
+    "Simulator_Tactical_Context": {
+        "enabled": true,
+        "home": {
+            "ppda": 4.738623103850641,
+            "ppda_opp": 4.878467635402906,
+            "field_tilt": 0.6291353594258159,
+            "high_error_rate": 17.0,
+            "directness": 0.06058668371832787,
+            "big_chance_diff": 47.0,
+            "pressing_edge": 0.028665667583283212,
+            "tempo": 0.5328532507554968,
+            "completeness": 1.0,
+            "attack_signal": 0.2831323573770628,
+            "attack_adjustment": 0.015572279655738456
+        },
+        "away": {
+            "ppda": 4.878467635402906,
+            "ppda_opp": 4.738623103850641,
+            "field_tilt": 0.6799582265261559,
+            "high_error_rate": 19.0,
+            "directness": 0.06433655133535339,
+            "big_chance_diff": 16.0,
+            "pressing_edge": -0.029511638399480785,
+            "tempo": 0.585220270494388,
+            "completeness": 1.0,
+            "attack_signal": 0.29140982212514566,
+            "attack_adjustment": 0.01602754021688301
+        },
+        "home_adjustment": 0.015572279655738456,
+        "away_adjustment": 0.01602754021688301,
+        "tempo": 0.5590367606249425,
+        "balance": 0.9917225352519172,
+        "rho_adjustment": -0.012390205632559825
+    },
+    "Demo_v2_Shadow": {
+        "enabled": true,
+        "status": "ok",
+        "model": "demo_model_v2",
+        "league_used": "Premier_League",
+        "home_win_prob": 66.08,
+        "draw_prob": 24.0,
+        "away_win_prob": 9.93,
+        "home_win_prob_mc": 68.26,
+        "draw_prob_mc": 20.42,
+        "away_win_prob_mc": 11.32,
+        "expected_goals_home": 1.924,
+        "expected_goals_away": 0.629,
+        "most_likely_score": "2-0",
+        "home_rating_source": "Weighted (Home) + PlayerImpact",
+        "away_rating_source": "Weighted (Away) + PlayerImpact"
     },
     "Team_Style_Snapshot": {
         "home": {
-            "ppda": 5.050884955752212,
-            "possession_pct": 46.4,
-            "goals_per_90": 1.5,
-            "conceded_per_90": 1.3461538461538463,
-            "xg_per_90": 1.4645,
+            "ppda": 4.738623103850641,
+            "possession_pct": 57.7,
+            "goals_per_90": 1.77,
+            "conceded_per_90": 0.6923076923076923,
+            "xg_per_90": 1.725,
             "xa_per_90": null,
-            "xt_proxy": 0.4661929440678254
+            "xt_proxy": 0.5570010347431511
         },
         "away": {
-            "ppda": 4.715139442231076,
-            "possession_pct": 52.7,
-            "goals_per_90": 1.27,
-            "conceded_per_90": 1.3076923076923077,
-            "xg_per_90": 1.154,
+            "ppda": 4.878467635402906,
+            "possession_pct": 60.8,
+            "goals_per_90": 1.54,
+            "conceded_per_90": 1.3461538461538463,
+            "xg_per_90": 2.032,
             "xa_per_90": null,
-            "xt_proxy": 0.4915281926028008
+            "xt_proxy": 0.6110440584416534
         }
     },
     "Lineup_Context": {
-        "home_source": "confirmed",
-        "away_source": "confirmed",
-        "home_matched": 11,
-        "away_matched": 11,
+        "home_source": "projected",
+        "away_source": "projected",
+        "home_matched": 0,
+        "away_matched": 0,
         "home_lineup_metrics": {
-            "attack": 0.3940049868929779,
-            "defense": 0.6203759365414331,
-            "overall": 0.46312511706259957,
-            "xg_p90": 0.2073619025113452,
-            "xa_p90": 0.08540727919250832,
-            "xt_proxy": 0.34098239004817216
+            "attack": 0.463739948305322,
+            "defense": 0.6687351802608614,
+            "overall": 0.5142388697421291,
+            "xg_p90": 0.2092260883484606,
+            "xa_p90": 0.12078557209654033,
+            "xt_proxy": 0.41121024976342985
         },
         "away_lineup_metrics": {
-            "attack": 0.38741182240562105,
-            "defense": 0.6372086372288019,
-            "overall": 0.4641633368072564,
-            "xg_p90": 0.18050957080942068,
-            "xa_p90": 0.08697249995959933,
-            "xt_proxy": 0.36100875881930866
+            "attack": 0.4570377816144474,
+            "defense": 0.6404523427392637,
+            "overall": 0.49458985323403365,
+            "xg_p90": 0.2067014463370943,
+            "xa_p90": 0.12495235007960846,
+            "xt_proxy": 0.45649579762150383
         },
-        "confidence": 1.0
+        "confidence": 0.0
     },
     "Fatigue_Context": {
         "home_attack_penalty": 0.0,
@@ -335,156 +462,156 @@
         "away_days_since_last": 6
     },
     "Progression_Context": {
-        "home_xt_proxy": 0.4661929440678254,
-        "away_xt_proxy": 0.4915281926028008,
-        "home_strength": 0.41674831173649535,
-        "away_strength": 0.3655850899968769,
-        "home_adjustment": 0.0048669824228993125,
-        "away_adjustment": -0.008625728065656776,
-        "home_counter_index": 0.42054311646016124,
-        "away_counter_index": 0.13973897307982738,
-        "home_u_shape_risk": 0.31520926766457386,
-        "away_u_shape_risk": 0.43301010401328793
+        "home_xt_proxy": 0.5570010347431511,
+        "away_xt_proxy": 0.6110440584416534,
+        "home_strength": 0.4437415783981967,
+        "away_strength": 0.49821780140923205,
+        "home_adjustment": -0.007340353246081631,
+        "away_adjustment": 0.004896673708459493,
+        "home_counter_index": 0.24956142661623126,
+        "away_counter_index": 0.33002574224502984,
+        "home_u_shape_risk": 0.35757317187723187,
+        "away_u_shape_risk": 0.3441979738651361
     },
     "Key_Matchups": [
-        "Home Left Flank: Kevin Schade vs Lewis Dunk (-0.16)",
-        "Home Right Flank: Dango Ouattara vs Jan Paul van Hecke (-0.35)",
-        "Home Central 9: Igor Thiago vs Joël Veltman (-0.19)",
-        "Home Midfield Control: Mathias Jensen vs Pascal Groß (-0.07)"
+        "Home Left Flank: Leandro Trossard vs Ibrahima Konaté (-0.24)",
+        "Home Right Flank: Bukayo Saka vs Virgil van Dijk (-0.16)",
+        "Home Central 9: Viktor Gyökeres vs Miloš Kerkez (-0.28)",
+        "Home Midfield Control: Eberechi Eze vs Florian Wirtz (-0.07)"
     ],
     "Position_Battles": [
         {
             "perspective": "home",
             "zone": "Left Flank",
-            "attacker": "Kevin Schade",
-            "defender": "Lewis Dunk",
-            "attack_value": 0.6028464704348442,
-            "defense_value": 0.7674751410331822,
-            "xg_p90": 0.41780750670241285,
-            "xa_p90": 0.08342454112600536,
-            "xt_proxy": 0.5224221128552862,
-            "duel_score": -0.16462867059833797,
+            "attacker": "Leandro Trossard",
+            "defender": "Ibrahima Konaté",
+            "attack_value": 0.6154090052341945,
+            "defense_value": 0.859831775782883,
+            "xg_p90": 0.2632753815527538,
+            "xa_p90": 0.14890893503649635,
+            "xt_proxy": 0.5997072064513249,
+            "duel_score": -0.24442277054868844,
             "edge": "away"
         },
         {
             "perspective": "home",
             "zone": "Right Flank",
-            "attacker": "Dango Ouattara",
-            "defender": "Jan Paul van Hecke",
-            "attack_value": 0.529561320216444,
-            "defense_value": 0.878881102808665,
-            "xg_p90": 0.314671772428884,
-            "xa_p90": 0.0949444536105033,
-            "xt_proxy": 0.48660798521974147,
-            "duel_score": -0.3493197825922211,
+            "attacker": "Bukayo Saka",
+            "defender": "Virgil van Dijk",
+            "attack_value": 0.7525291455384768,
+            "defense_value": 0.9140274316760062,
+            "xg_p90": 0.32020841300191205,
+            "xa_p90": 0.2932410797323136,
+            "xt_proxy": 0.7838836191984043,
+            "duel_score": -0.16149828613752937,
             "edge": "away"
         },
         {
             "perspective": "home",
             "zone": "Central 9",
-            "attacker": "Igor Thiago",
-            "defender": "Joël Veltman",
-            "attack_value": 0.6388231259161513,
-            "defense_value": 0.7495510532824349,
-            "xg_p90": 0.6014931941923775,
-            "xa_p90": 0.04774012472776769,
-            "xt_proxy": 0.464332477887894,
-            "duel_score": -0.1898990503609368,
+            "attacker": "Viktor Gyökeres",
+            "defender": "Miloš Kerkez",
+            "attack_value": 0.469328601184356,
+            "defense_value": 0.6770716965755712,
+            "xg_p90": 0.45337783375314866,
+            "xa_p90": 0.07502942153652392,
+            "xt_proxy": 0.38684176149052285,
+            "duel_score": -0.27627250715592283,
             "edge": "away"
         },
         {
             "perspective": "home",
             "zone": "Midfield Control",
-            "attacker": "Mathias Jensen",
-            "defender": "Pascal Groß",
-            "attack_value": 0.43423582400323163,
-            "defense_value": 0.580426278697926,
-            "xg_p90": 0.1347587327376117,
-            "xa_p90": 0.24367242867587327,
-            "xt_proxy": 0.539933188910036,
-            "duel_score": -0.07238995150801517,
+            "attacker": "Eberechi Eze",
+            "defender": "Florian Wirtz",
+            "attack_value": 0.5196605395513461,
+            "defense_value": 0.47027038476613897,
+            "xg_p90": 0.20339045936395758,
+            "xa_p90": 0.13507073030035335,
+            "xt_proxy": 0.5312946500383995,
+            "duel_score": -0.07249191172461303,
             "edge": "even"
         },
         {
             "perspective": "away",
             "zone": "Left Flank",
-            "attacker": "Kaoru Mitoma",
-            "defender": "Sepp van den Berg",
-            "attack_value": 0.4960898236966658,
-            "defense_value": 0.74161111637981,
-            "xg_p90": 0.16610606060606062,
-            "xa_p90": 0.15434650000000003,
-            "xt_proxy": 0.585933069147558,
-            "duel_score": -0.2455212926831442,
+            "attacker": "Cody Gakpo",
+            "defender": "Jurriën Timber",
+            "attack_value": 0.626864566171312,
+            "defense_value": 0.7705165794228871,
+            "xg_p90": 0.2656898517673888,
+            "xa_p90": 0.2097954944127708,
+            "xt_proxy": 0.6811163749135115,
+            "duel_score": -0.14365201325157506,
             "edge": "home"
         },
         {
             "perspective": "away",
             "zone": "Right Flank",
-            "attacker": "Yankuba Minteh",
-            "defender": "Michael Kayode",
-            "attack_value": 0.5025723298776963,
-            "defense_value": 0.7640783056232718,
-            "xg_p90": 0.15927256097560974,
-            "xa_p90": 0.15530462176829268,
-            "xt_proxy": 0.6605146501355693,
-            "duel_score": -0.26150597574557555,
+            "attacker": "Mohamed Salah",
+            "defender": "Gabriel Magalhães",
+            "attack_value": 0.6117745211859055,
+            "defense_value": 0.8921875722314827,
+            "xg_p90": 0.3555497722836695,
+            "xa_p90": 0.21111100325309043,
+            "xt_proxy": 0.6936919487461712,
+            "duel_score": -0.28041305104557723,
             "edge": "home"
         },
         {
             "perspective": "away",
             "zone": "Central 9",
-            "attacker": "Danny Welbeck",
-            "defender": "Kristoffer Ajer",
-            "attack_value": 0.5211878239781118,
-            "defense_value": 0.7225748805587628,
-            "xg_p90": 0.5224088093599449,
-            "xa_p90": 0.04605376992429456,
-            "xt_proxy": 0.4206149431191741,
-            "duel_score": -0.26335736697201384,
+            "attacker": "Hugo Ekitiké",
+            "defender": "William Saliba",
+            "attack_value": 0.6655340883529468,
+            "defense_value": 0.7612834093149023,
+            "xg_p90": 0.5113894736842105,
+            "xa_p90": 0.11899114756578946,
+            "xt_proxy": 0.6173557899838265,
+            "duel_score": -0.13901368877804593,
             "edge": "home"
         }
     ],
     "Math_Winner_Context": {
-        "winner_side": "home",
-        "home_ratio": 1.1300280532375675,
-        "away_ratio": 0.8849337829578365,
-        "home_bonus": 0.0004512623956905326,
+        "winner_side": "none",
+        "home_ratio": 1.0531174829242984,
+        "away_ratio": 0.9495616739959517,
+        "home_bonus": 0.0,
         "away_bonus": 0.0,
         "ratio_threshold": 1.12
     },
     "XG_Input": {
         "home": {
-            "team": "Brentford",
-            "file_used": "Brentford.xlsx",
-            "games_played": 32,
-            "form_last_5": 7,
+            "team": "Arsenal",
+            "file_used": "Arsenal.xlsx",
+            "games_played": 43,
+            "form_last_5": 13,
             "attack": {
-                "xg_per_game": 1.4645
+                "xg_per_game": 1.725
             },
             "defense": {
-                "xga_per_game": 1.1279599999999999
+                "xga_per_game": 1.08947
             },
             "xg_source": "proxy:shots_sot_goals",
             "xga_source": "proxy:ga_sota_save"
         },
         "away": {
-            "team": "Brighton & Hove Albion",
-            "file_used": "Brighton.xlsx",
-            "games_played": 32,
-            "form_last_5": 1,
+            "team": "Liverpool",
+            "file_used": "Liverpool.xlsx",
+            "games_played": 42,
+            "form_last_5": 12,
             "attack": {
-                "xg_per_game": 1.154
+                "xg_per_game": 2.032
             },
             "defense": {
-                "xga_per_game": 1.22819
+                "xga_per_game": 0.877
             },
             "xg_source": "proxy:shots_sot_goals",
             "xga_source": "proxy:ga_sota_save"
         }
     },
-    "AI_Report_Generated": true,
-    "AI_Report_Path": "analyses/analysis_Brentford_Brighton_Hove_Albion.md",
-    "AI_Report_Error": null,
-    "Gemini_Key_Source": "file:gemini_key.txt"
+    "AI_Report_Generated": false,
+    "AI_Report_Path": null,
+    "AI_Report_Error": "missing_api_key",
+    "Gemini_Key_Source": null
 }

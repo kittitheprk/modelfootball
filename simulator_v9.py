@@ -1136,6 +1136,84 @@ def _compute_fatigue(league, team_name, load_index):
     }
 
 
+def _flow_num(flow, keys):
+    if not isinstance(flow, dict):
+        return None
+    for key in keys:
+        if key not in flow:
+            continue
+        val = _safe_float(flow.get(key), None)
+        if val is not None:
+            return val
+    return None
+
+
+def _normalize_field_tilt(value):
+    if value is None:
+        return 0.5
+    tilt = float(value)
+    if tilt > 1.5:
+        tilt = tilt / 100.0
+    return _clip(tilt, 0.0, 1.0)
+
+
+def _build_tactical_inputs(flow_team, flow_opp):
+    ppda_team_raw = _flow_num(flow_team, ["calc_PPDA", "PPDA"])
+    ppda_opp_raw = _flow_num(flow_opp, ["calc_PPDA", "PPDA"])
+    field_tilt_raw = _flow_num(flow_team, ["calc_FieldTilt_Pct", "FieldTilt_Pct"])
+    high_error_raw = _flow_num(flow_team, ["calc_HighError_Rate", "HighError_Rate"])
+    directness_raw = _flow_num(flow_team, ["calc_Directness", "Directness"])
+    big_chance_raw = _flow_num(flow_team, ["calc_BigChance_Diff", "BigChance_Diff"])
+
+    available = [
+        ppda_team_raw is not None,
+        ppda_opp_raw is not None,
+        field_tilt_raw is not None,
+        high_error_raw is not None,
+        directness_raw is not None,
+        big_chance_raw is not None,
+    ]
+    completeness = float(sum(available) / len(available))
+
+    ppda_team = _safe_float(ppda_team_raw, 8.0)
+    ppda_opp = _safe_float(ppda_opp_raw, 8.0)
+    field_tilt = _normalize_field_tilt(field_tilt_raw)
+    high_error_rate = _safe_float(high_error_raw, 12.0)
+    directness = _safe_float(directness_raw, 0.08)
+    big_chance_diff = _safe_float(big_chance_raw, 0.0)
+
+    pressing_edge = _clip((ppda_opp - ppda_team) / max(2.5, ppda_opp), -1.0, 1.0)
+    tilt_edge = _clip((field_tilt - 0.5) / 0.5, -1.0, 1.0)
+    high_error_norm = _clip(high_error_rate / 22.0, 0.0, 1.0)
+    directness_norm = _clip(directness / 0.18, 0.0, 1.0)
+    big_chance_norm = _clip(big_chance_diff / 14.0, -1.0, 1.0)
+
+    tempo = _clip((0.55 * directness_norm) + (0.45 * high_error_norm), 0.0, 1.0)
+    raw_attack_signal = (
+        (0.42 * pressing_edge)
+        + (0.26 * tilt_edge)
+        + (0.20 * big_chance_norm)
+        + (0.12 * (tempo - 0.5))
+    )
+    confidence = 0.55 + (0.45 * completeness)
+    attack_signal = _clip(raw_attack_signal * confidence, -1.0, 1.0)
+    attack_adj = _clip(attack_signal * 0.055, -0.045, 0.055)
+
+    return {
+        "ppda": float(ppda_team),
+        "ppda_opp": float(ppda_opp),
+        "field_tilt": float(field_tilt),
+        "high_error_rate": float(high_error_rate),
+        "directness": float(directness),
+        "big_chance_diff": float(big_chance_diff),
+        "pressing_edge": float(pressing_edge),
+        "tempo": float(tempo),
+        "completeness": float(completeness),
+        "attack_signal": float(attack_signal),
+        "attack_adjustment": float(attack_adj),
+    }
+
+
 def _progression_strength(prog):
     if not prog:
         return 0.5
@@ -1168,6 +1246,8 @@ def simulate_match(
     context_text=None,
     home_progression=None,
     away_progression=None,
+    home_flow=None,
+    away_flow=None,
 ):
     """
     Simulator v9
@@ -1260,6 +1340,13 @@ def simulate_match(
         "home_strength": None,
         "away_strength": None,
     }
+    tactical_ctx = {
+        "enabled": False,
+        "home": {},
+        "away": {},
+        "home_adjustment": 0.0,
+        "away_adjustment": 0.0,
+    }
     key_matchups = []
     position_battles = []
     math_winner_ctx = {
@@ -1276,6 +1363,8 @@ def simulate_match(
     away_matchup_adj = 0.0
     progression_home_adj = 0.0
     progression_away_adj = 0.0
+    tactical_home_adj = 0.0
+    tactical_away_adj = 0.0
 
     home_fatigue = {"attack_penalty": 0.0, "defense_leak": 0.0}
     away_fatigue = {"attack_penalty": 0.0, "defense_leak": 0.0}
@@ -1311,6 +1400,23 @@ def simulate_match(
         "home_u_shape_risk": home_u_shape,
         "away_u_shape_risk": away_u_shape,
     }
+
+    if isinstance(home_flow, dict) and isinstance(away_flow, dict):
+        home_tactical = _build_tactical_inputs(home_flow, away_flow)
+        away_tactical = _build_tactical_inputs(away_flow, home_flow)
+
+        tactical_home_adj = home_tactical["attack_adjustment"]
+        tactical_away_adj = away_tactical["attack_adjustment"]
+        lambda_home *= 1.0 + tactical_home_adj
+        lambda_away *= 1.0 + tactical_away_adj
+
+        tactical_ctx = {
+            "enabled": True,
+            "home": home_tactical,
+            "away": away_tactical,
+            "home_adjustment": float(tactical_home_adj),
+            "away_adjustment": float(tactical_away_adj),
+        }
 
     try:
         if league and home_team and away_team and pd is not None:
@@ -1408,6 +1514,27 @@ def simulate_match(
     close = _clip(1.0 - abs(post_strength_raw) / 1.2, 0.0, 1.0)
     rho = -0.03 - (0.07 * close)
 
+    if tactical_ctx.get("enabled"):
+        home_tempo = _safe_float(tactical_ctx.get("home", {}).get("tempo"), 0.5)
+        away_tempo = _safe_float(tactical_ctx.get("away", {}).get("tempo"), 0.5)
+        tempo = _clip((home_tempo + away_tempo) / 2.0, 0.0, 1.0)
+
+        home_sig = _safe_float(tactical_ctx.get("home", {}).get("attack_signal"), 0.0)
+        away_sig = _safe_float(tactical_ctx.get("away", {}).get("attack_signal"), 0.0)
+        balance = _clip(1.0 - abs(home_sig - away_sig), 0.0, 1.0)
+
+        rho += (tempo - 0.5) * 0.04
+        rho += (0.5 - balance) * 0.03
+        rho = _clip(rho, -0.13, -0.01)
+
+        tactical_ctx["tempo"] = float(tempo)
+        tactical_ctx["balance"] = float(balance)
+        tactical_ctx["rho_adjustment"] = float(rho + (0.03 + (0.07 * close)))
+    else:
+        tactical_ctx["tempo"] = None
+        tactical_ctx["balance"] = None
+        tactical_ctx["rho_adjustment"] = 0.0
+
     prob_matrix = _build_score_matrix(lambda_home, lambda_away, max_goals=10, rho=rho)
 
     home_win_prob = float(np.tril(prob_matrix, k=-1).sum() * 100)
@@ -1430,6 +1557,12 @@ def simulate_match(
         bonus_parts.append(f"MathWinner H{home_math_bonus*100:+.1f}% A{away_math_bonus*100:+.1f}%")
     if abs(progression_home_adj) > 1e-6 or abs(progression_away_adj) > 1e-6:
         bonus_parts.append(f"Progression H{progression_home_adj*100:+.1f}% A{progression_away_adj*100:+.1f}%")
+    if tactical_ctx.get("enabled"):
+        bonus_parts.append(f"Tactical H{tactical_home_adj*100:+.1f}% A{tactical_away_adj*100:+.1f}%")
+        tempo_txt = _safe_float(tactical_ctx.get("tempo"), None)
+        balance_txt = _safe_float(tactical_ctx.get("balance"), None)
+        if tempo_txt is not None and balance_txt is not None:
+            bonus_parts.append(f"Tactical tempo {tempo_txt:.2f} balance {balance_txt:.2f}")
     if abs(home_matchup_adj) > 1e-6 or abs(away_matchup_adj) > 1e-6:
         bonus_parts.append(f"Matchups H{home_matchup_adj*100:+.1f}% A{away_matchup_adj*100:+.1f}%")
     if home_fatigue["attack_penalty"] > 0 or away_fatigue["attack_penalty"] > 0:
@@ -1458,6 +1591,7 @@ def simulate_match(
         "fatigue_context": fatigue_ctx,
         "calibration_context": calibration_ctx,
         "progression_context": progression_ctx,
+        "tactical_context": tactical_ctx,
         "key_matchups": key_matchups,
         "position_battles": position_battles,
         "math_winner_context": math_winner_ctx,
