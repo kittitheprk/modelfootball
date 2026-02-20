@@ -462,6 +462,46 @@ def _evaluate_quality_gates(overall_metrics, gates=None):
     out["passed"] = enough and all(out["checks"][k]["status"] == "pass" for k in required if k != "min_completed_matches")
     return out
 
+
+def _extract_tactical_regime(payload):
+    if not isinstance(payload, dict):
+        return "unknown"
+
+    core_ctx = payload.get("Model_Core_Context")
+    if isinstance(core_ctx, dict):
+        regime = str(core_ctx.get("tactical_regime") or "").strip()
+        if regime:
+            return regime
+
+    tactical_ctx = payload.get("Simulator_Tactical_Context")
+    if isinstance(tactical_ctx, dict):
+        regime = str(tactical_ctx.get("regime") or "").strip()
+        if regime:
+            return regime
+        if tactical_ctx.get("enabled"):
+            return "balanced"
+    return "unknown"
+
+
+def _extract_model_core(payload):
+    if not isinstance(payload, dict):
+        return "v9"
+    model_core = str(payload.get("Model_Core") or "").strip().lower()
+    if model_core:
+        return model_core
+    core_ctx = payload.get("Model_Core_Context")
+    if isinstance(core_ctx, dict):
+        active = str(core_ctx.get("active_core") or "").strip().lower()
+        if active:
+            return active
+    version = str(payload.get("Model_Version") or "").strip().lower()
+    if "hybrid" in version:
+        return "hybrid"
+    if "demo" in version:
+        return "demo_v2"
+    return "v9"
+
+
 def _build_new_prediction_row(data):
     expected_home = round(float(data.get("Expected_Goals_Home", 0)), 2)
     expected_away = round(float(data.get("Expected_Goals_Away", 0)), 2)
@@ -479,6 +519,8 @@ def _build_new_prediction_row(data):
         "xG_Away": expected_away,
         "Expected_Goals_Home": expected_home,
         "Expected_Goals_Away": expected_away,
+        "Model_Core": _extract_model_core(data),
+        "Tactical_Regime": _extract_tactical_regime(data),
         "Actual_Score": None,
         "Actual_Result": None,
         "Correct": None,
@@ -501,6 +543,7 @@ def _build_calibration_from_predictions(df):
 
     league_acc = {}
     team_acc = {}
+    regime_acc = {}
     used_rows = 0
 
     for _, row in done.iterrows():
@@ -525,6 +568,7 @@ def _build_calibration_from_predictions(df):
 
         weight = _recency_weight(row.get("Date"), max_date=max_date, half_life_days=120.0)
         league = str(row.get("League", "")).strip() or "Unknown"
+        regime = str(_first_nonblank(row, ["Tactical_Regime", "tactical_regime"]) or "").strip() or "unknown"
         home_team = str(_first_nonblank(row, ["Home_Team", "Home"]) or "").strip()
         away_team = str(_first_nonblank(row, ["Away_Team", "Away"]) or "").strip()
 
@@ -533,6 +577,12 @@ def _build_calibration_from_predictions(df):
         l["away_sum"] += res_a * weight
         l["w"] += weight
         l["n"] += 1
+
+        r = regime_acc.setdefault(regime, {"home_sum": 0.0, "away_sum": 0.0, "w": 0.0, "n": 0})
+        r["home_sum"] += res_h * weight
+        r["away_sum"] += res_a * weight
+        r["w"] += weight
+        r["n"] += 1
 
         if home_team:
             t = team_acc.setdefault(home_team, {"attack_sum": 0.0, "defense_sum": 0.0, "w": 0.0, "n": 0})
@@ -599,6 +649,28 @@ def _build_calibration_from_predictions(df):
         sorted(by_team.items(), key=lambda kv: kv[1].get("n_matches", 0), reverse=True)
     )
 
+    by_regime = {}
+    for regime, stats in regime_acc.items():
+        w = max(1e-9, stats["w"])
+        home_res = stats["home_sum"] / w
+        away_res = stats["away_sum"] / w
+        regime_rel = _clip(stats["n"] / 10.0, 0.0, 1.0)
+        raw_home_scale = _clip(1.0 + (0.07 * home_res), 0.90, 1.10)
+        raw_away_scale = _clip(1.0 + (0.07 * away_res), 0.90, 1.10)
+        home_scale = 1.0 + ((raw_home_scale - 1.0) * regime_rel)
+        away_scale = 1.0 + ((raw_away_scale - 1.0) * regime_rel)
+        by_regime[regime] = {
+            "n_matches": int(stats["n"]),
+            "weighted_home_goal_residual": round(home_res, 4),
+            "weighted_away_goal_residual": round(away_res, 4),
+            "home_scale": round(home_scale, 4),
+            "away_scale": round(away_scale, 4),
+            "reliability": round(regime_rel, 3),
+        }
+    by_regime = dict(
+        sorted(by_regime.items(), key=lambda kv: kv[1].get("n_matches", 0), reverse=True)
+    )
+
     g_w = max(1e-9, total_w)
     global_home_res = total_home / g_w
     global_away_res = total_away / g_w
@@ -621,10 +693,12 @@ def _build_calibration_from_predictions(df):
         },
         "by_league": by_league,
         "by_team": by_team,
+        "by_regime": by_regime,
         "notes": [
             "Residual = actual goals - expected goals from latest_prediction.",
             "If Expected_Goals_* missing, fallback uses Pred_Score as rough proxy.",
             "Team scales are reliability-weighted and clipped to avoid overfitting.",
+            "Regime scales are estimated from Tactical_Regime history when available.",
         ],
     }
 

@@ -1,131 +1,188 @@
-# Upgrade Note: Integrate `demo_model_v2` into Current Analysis Project
+# Upgrade Plan: V10 Reliable Football Prediction Platform
 
-Status: Draft note (implementation deferred)
-Owner: Pending
+Status: Active draft  
+Owner: Pending  
 Last updated: 2026-02-20
 
-## 1) Goal
+## Progress Snapshot (2026-02-20)
 
-Prepare a safe upgrade path to reuse `demo_model_v2` as an improved prediction core while keeping current production flow stable.
+Completed in this iteration:
+- Baseline commit frozen before V10 work.
+- `MODEL_CORE` router implemented (`v9 | demo_v2 | hybrid`, default `v9`).
+- `demo_v2` adapter hardened (league/team resolution, unit policy, source confidence context).
+- Hybrid lambda blending implemented with bounded clipping and decomposition logs.
+- Tactical regime calibration hooks added (`by_regime`) across simulator + tracker calibration build.
+- Rolling-origin comparison script added: `scripts/backtest_model_cores.py`.
+- Report appendix expanded to compare `v9`, `demo_v2`, `hybrid` with delta 1X2/xG and confidence class.
+- New tests added for router, adapter units, hybrid stability, and prediction schema regression.
 
-Current production entrypoints:
-- `analyze_match.py`
-- `update_tracker.py`
-- `update_football_data.py`
+Remaining:
+- Refresh calibration artifact from latest tracker data and review regime buckets.
+- Final validation pass on full command set and tracker integration in real run.
 
-Candidate modules from `demo_model_v2`:
-- `demo_model_v2/data_loader.py`
-- `demo_model_v2/feature_engine.py`
-- `demo_model_v2/match_log_loader.py`
-- `demo_model_v2/player_impact_engine.py`
-- `demo_model_v2/poisson_model.py`
-- `demo_model_v2/simulator.py`
-- `demo_model_v2/backtest.py`
+## 1) Vision
 
-## 2) Non-goals (for first rollout)
+Build a trustworthy pre-match prediction platform that optimizes long-run probability quality, not one-match hit rate.
 
-- No breaking change to `latest_prediction.json` schema.
-- No removal of `simulator_v9` path in first release.
-- No direct replacement of all data pipelines in one step.
+Target outputs:
+- `P(scoreline)` from a full score matrix
+- `P(Home/Draw/Away)` from the same distribution surface
+- calibrated confidence that can be audited over time
 
-## 3) Key risks to control
+Compatibility goals:
+- no breaking change to `latest_prediction.json` in initial rollout
+- keep `simulator_v9` as immediate fallback path
 
-- Unit mismatch (`raw`, `per match`, `per 90`) across sources.
-- Team naming mismatch across datasets.
-- Metric drift after swapping model core.
-- Silent degradation in bet outputs or tracker metrics.
+## 2) Baseline Already Added From This Chat
 
-## 4) Safe migration strategy (phased)
+These are now part of the production baseline and must be preserved in V10:
 
-Phase 0: Baseline freeze
-- Keep current production as reference.
-- Save baseline outputs for a fixed match set:
+- Tactical layer connected end-to-end (`PPDA`, `Field Tilt`, `Directness`, `High Error`, `BigChanceDiff`) to adjust expected goals.
+- Tactical context exposed for traceability (`Simulator_Tactical_Context` and flow payloads).
+- `home_flow` and `away_flow` are now passed from `analyze_match.py` into the simulator.
+- Regression test added for tactical adjustment behavior in `tests/test_simulator_v9.py`.
+
+## 3) V10 Core Architecture (Hybrid)
+
+V10 should be a hybrid, layered model:
+
+1. Data layer  
+- match logs, team stats, game flow, progression proxies, player/lineup context, optional OPTA aggregates
+
+2. Feature layer  
+- tactical (`PPDA`, `Field Tilt`, transition/directness)
+- progression (`xT` proxy, deep completion, counter index)
+- squad state (lineup quality, missing players, fatigue/load)
+
+3. Lambda layer  
+- estimate `lambda_home`, `lambda_away` from combined signals
+- keep each adjustment bounded and logged
+
+4. Distribution layer  
+- Dixon-Coles score matrix with dynamic `rho`
+
+5. Calibration layer  
+- global + league + team + tactical-regime calibration
+
+6. Decision/output layer  
+- publish 1X2, scoreline, bet surfaces, and full explanation context
+
+## 4) Reliability Principles
+
+- Time-safe only: no feature can use future information.
+- No leakage: split by match date, never random split for model selection.
+- Bounded adjustments: each layer capped to prevent unstable overreaction.
+- Graceful fallback: missing tactical/lineup inputs must degrade to stable defaults.
+- Auditability first: every prediction stores adjustment decomposition.
+
+## 5) Data Contracts and Quality Controls
+
+Standardization policy:
+- canonical team name map across all sources
+- explicit unit policy (`raw`, `per_match`, `per_90`) with transformation metadata
+- source confidence score for each critical feature group
+
+Pre-run checks:
+- fixture/context alignment (`Match`, `League`, team names)
+- minimum usable data thresholds for tactical and progression features
+- schema checks before pipeline run
+
+Operational checks:
+- retain `scripts/system_check.py` and pipeline preflight as mandatory gates
+- keep backup and tracker integrity checks before writes
+
+## 6) Modeling Strategy (V10)
+
+Primary path:
+- keep `simulator_v9` statistical base and tactical decomposition
+- improve tactical weighting by league and sample reliability
+- keep dynamic `rho` in Dixon-Coles and extend with regime-aware calibration
+
+Upgrade path from `demo_model_v2`:
+- use `demo_model_v2` modules to produce alternative lambda estimates
+- run in shadow mode first (`v9` primary, `demo_v2` observer)
+- compare and blend only after passing acceptance gates
+
+Target blend design:
+- `lambda = base_strength + progression + tactical + lineup + fatigue + calibration`
+- each term logged and clipped with per-league bounds
+
+## 7) Evaluation and Calibration Framework
+
+Mandatory validation method:
+- rolling-origin backtest by date
+- league-wise and season-phase segmentation
+
+Primary model quality metrics:
+- `Brier Score (1X2)`
+- `Log Loss (1X2)`
+- calibration curve / reliability gap
+
+Secondary monitoring metrics:
+- score MAE
+- goal-difference MAE
+- exact-score accuracy (diagnostic only)
+
+Calibration hierarchy:
+- global
+- by league
+- by team
+- by tactical regime (pressing-high, low-block, transition-heavy)
+
+## 8) Explainability and Traceability Requirements
+
+Every prediction should include:
+- base xG values
+- tactical, progression, lineup, fatigue, calibration adjustments
+- final `lambda_home`, `lambda_away`, and `rho`
+- key positional battles and tactical scenario summary
+
+Persistable artifacts:
 - `latest_prediction.json`
-- `model_performance.json`
 - `model_calibration.json`
+- `model_performance.json`
+- tracker evaluation sheets
 
-Phase 1: Adapter layer only
-- Build an adapter from current data format to `demo_model_v2` inputs.
-- Run `demo_model_v2` in shadow mode (no user-facing switch yet).
-- Compare outputs against production and log deltas.
+## 9) Migration Phases (Safe Rollout)
 
-Phase 2: Unit audit mode (read-only)
-- Add explicit unit checks before any conversion.
-- Detect if metric is already `*_per_90`; do not re-normalize.
-- If only raw exists, compute from `raw / matches`.
-- Write warnings only, no auto-correction in this phase.
+Phase 0: Baseline freeze  
+- snapshot current outputs and metrics for fixed fixture set
 
-Phase 3: Controlled correction mode
-- Enable auto-correction only for fields with deterministic rules.
-- Keep fallback to old behavior for uncertain cases.
-- Keep a feature flag to disable new logic instantly.
+Phase 1: Adapter + shadow mode  
+- connect `demo_model_v2` via adapter, no user-facing switch
 
-Phase 4: Gradual production switch
-- Add runtime switch:
-- `MODEL_CORE=v9` (default)
-- `MODEL_CORE=demo_v2` (opt-in)
-- Promote to default only after acceptance criteria are met.
+Phase 2: Unit-audit and feature parity  
+- verify unit correctness and schema parity across all feature groups
 
-## 5) Unit policy for critical fields
+Phase 3: Controlled A/B in production  
+- feature flag switch by runtime config (`MODEL_CORE=v9|demo_v2|hybrid`)
 
-Target fields to standardize:
-- goals scored
-- goals conceded
-- shots on target
-- key passes
-- expected goals
-- expected assists (xA proxy path)
+Phase 4: Promotion criteria  
+- promote only when reliability metrics improve without stability regression
 
-Rules:
-- Prefer explicit `*_per_90` if present.
-- Else compute from raw totals and matches played.
-- Never divide again if value already looks normalized and source label confirms per-90.
-- Persist source and transformation path in debug metadata.
+Phase 5: Continuous monitoring  
+- drift alerts, periodic recalibration, rollback-ready deployment
 
-## 6) Proposed integration points
+## 10) Acceptance Criteria Before V10 Default
 
-In `analyze_match.py`:
-- Keep current output schema.
-- Add optional branch:
-- current branch -> `simulator_v9`
-- new branch -> adapter -> `demo_model_v2` core
-- Record branch used in `Model_Version` and debug context.
+- No schema regression in `latest_prediction.json`
+- No increase in failure rate for prediction pipeline
+- Better or equal rolling backtest metrics vs baseline:
+- `Brier Score` non-inferior and target improvement trend
+- `Log Loss` non-inferior and target improvement trend
+- Stable calibration by league and team segments
+- End-to-end health checks and test suite pass
 
-In `update_tracker.py`:
-- No schema break.
-- Ensure evaluation uses robust fallback columns (`Expected_Goals_*` and `xG_*`).
+## 11) Rollback Plan
 
-In pipeline:
-- Keep `update_football_data.py` unchanged for initial rollout.
-- Add optional validation step script for unit audit reports.
+- keep `MODEL_CORE=v9` path always available
+- config-only rollback within one deploy
+- retain shadow comparison logs for post-incident review
 
-## 7) Acceptance criteria before default switch
+## 12) Immediate Next Actions
 
-- Prediction run success rate: no regression.
-- No schema regression in `latest_prediction.json`.
-- No unresolved `null` from avoidable unit issues.
-- Backtest metrics not worse than baseline by agreed thresholds.
-- Health checks and tests pass:
-- `python scripts/system_check.py`
-- `python -m unittest tests/test_automation_paths.py tests/test_full_system.py tests/test_simulator_v9.py`
-
-## 8) Rollback plan
-
-- Keep `MODEL_CORE=v9` as immediate fallback.
-- Keep adapter isolated so rollback is config-only, not code rewrite.
-- Keep shadow comparison logs for incident review.
-
-## 9) Implementation backlog (deferred)
-
-- Add `MODEL_CORE` feature flag.
-- Build `demo_model_v2` adapter module.
-- Add unit-audit report script.
-- Add regression comparison script (`v9` vs `demo_v2`).
-- Add tests for unit detection and conversion guards.
-
-## 10) Next action when resuming work
-
-Start with Phase 1 and Phase 2 together:
-- Implement adapter (no behavior switch).
-- Implement unit-audit warnings (read-only).
-- Run shadow predictions on a fixed fixture set and compare.
+1. Add explicit feature flag and model-core router.
+2. Build adapter from current schema to `demo_model_v2` inputs.
+3. Add rolling-origin evaluation script for side-by-side (`v9` vs `demo_v2` vs `hybrid`).
+4. Add tactical-regime calibration table to `model_calibration.json`.
+5. Add reliability report section (per league, per regime, per confidence bucket).

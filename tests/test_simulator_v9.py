@@ -62,6 +62,45 @@ class TestSimulatorV9(unittest.TestCase):
         total_prob = sim["home_win_prob"] + sim["draw_prob"] + sim["away_win_prob"]
         self.assertAlmostEqual(total_prob, 100.0, delta=0.2)
 
+    def test_tactical_flow_adjustment(self):
+        h_xg = {"attack": {"xg_per_game": 1.45}, "defense": {"xga_per_game": 1.10}, "form_last_5": 10}
+        a_xg = {"attack": {"xg_per_game": 1.10}, "defense": {"xga_per_game": 1.35}, "form_last_5": 6}
+
+        base = simulator_v9.simulate_match(h_xg, a_xg, None, None, iterations=1000)
+
+        home_flow = {
+            "calc_PPDA": 4.6,
+            "calc_FieldTilt_Pct": 0.62,
+            "calc_HighError_Rate": 19.0,
+            "calc_Directness": 0.12,
+            "calc_BigChance_Diff": 6.0,
+        }
+        away_flow = {
+            "calc_PPDA": 11.8,
+            "calc_FieldTilt_Pct": 0.39,
+            "calc_HighError_Rate": 11.0,
+            "calc_Directness": 0.07,
+            "calc_BigChance_Diff": -6.0,
+        }
+
+        with_tactical = simulator_v9.simulate_match(
+            h_xg,
+            a_xg,
+            None,
+            None,
+            iterations=1000,
+            home_flow=home_flow,
+            away_flow=away_flow,
+        )
+
+        tactical_ctx = with_tactical.get("tactical_context", {})
+        self.assertTrue(tactical_ctx.get("enabled"))
+        self.assertGreater(tactical_ctx.get("home_adjustment", 0.0), 0.0)
+        self.assertLess(tactical_ctx.get("away_adjustment", 0.0), 0.0)
+        self.assertIn("regime", tactical_ctx)
+        self.assertGreater(with_tactical["expected_goals_home"], base["expected_goals_home"])
+        self.assertLess(with_tactical["expected_goals_away"], base["expected_goals_away"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1814,7 +1814,18 @@ def _generate_ai_report(prompt, api_key, model=None, max_retries=3, timeout_sec=
     return None, last_error or "unknown_gemini_error"
 
 
-def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text):
+def _try_simulator(
+    home,
+    away,
+    league,
+    home_sim_stats,
+    away_sim_stats,
+    home_prog,
+    away_prog,
+    context_text,
+    home_flow=None,
+    away_flow=None,
+):
     home_xg_data = None
     away_xg_data = None
     try:
@@ -1838,6 +1849,8 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
             context_text=context_text,
             home_progression=home_prog,
             away_progression=away_prog,
+            home_flow=home_flow,
+            away_flow=away_flow,
         )
         sim["xg_input"] = {"home": home_xg_data, "away": away_xg_data}
         sim.setdefault("lineup_context", {})
@@ -1860,6 +1873,796 @@ def _try_simulator(home, away, league, home_sim_stats, away_sim_stats, home_prog
         sim["position_battles"] = []
         sim["math_winner_context"] = {}
         return sim
+
+
+def _normalize_league_for_demo_v2(league_name):
+    resolved, _ = _resolve_demo_v2_league(league_name)
+    return resolved
+
+
+def _clip_scalar(value, low, high):
+    return max(low, min(high, float(value)))
+
+
+def _resolve_model_core(default_core="v9"):
+    raw = str(os.getenv("MODEL_CORE", default_core) or "").strip().lower()
+    aliases = {
+        "v9": "v9",
+        "demo_v2": "demo_v2",
+        "demo-v2": "demo_v2",
+        "demo": "demo_v2",
+        "hybrid": "hybrid",
+        "v10": "hybrid",
+    }
+    normalized = aliases.get(raw, raw)
+    if normalized not in {"v9", "demo_v2", "hybrid"}:
+        normalized = default_core
+        fallback_reason = "unsupported_model_core_env"
+    else:
+        fallback_reason = None
+    return normalized, {
+        "requested": raw or default_core,
+        "resolved": normalized,
+        "fallback_reason": fallback_reason,
+    }
+
+
+def _resolve_demo_unit_policy(default_policy="per_match"):
+    raw = str(os.getenv("DEMO_V2_UNIT_POLICY", default_policy) or "").strip().lower()
+    allowed = {"raw", "per_match", "per_90"}
+    if raw in allowed:
+        return raw, {"requested": raw, "resolved": raw, "fallback_reason": None}
+    return default_policy, {
+        "requested": raw or default_policy,
+        "resolved": default_policy,
+        "fallback_reason": "unsupported_unit_policy_env",
+    }
+
+
+def _resolve_hybrid_demo_weight(default_weight=0.35):
+    raw = str(os.getenv("HYBRID_DEMO_WEIGHT", default_weight) or "").strip()
+    try:
+        parsed = float(raw)
+    except Exception:
+        parsed = float(default_weight)
+    clipped = _clip_scalar(parsed, 0.0, 1.0)
+    return clipped, {
+        "requested": raw,
+        "resolved": float(clipped),
+        "clipped": bool(abs(clipped - parsed) > 1e-9),
+    }
+
+
+def _resolve_demo_v2_league(league_name):
+    raw = str(league_name or "").strip()
+    if not raw:
+        return "All", {"requested": raw, "resolved": "All", "method": "empty_fallback", "confidence": 0.0}
+
+    normalized = _normalize_text(raw).replace(" ", "_")
+    mapping = {
+        "premier_league": "Premier_League",
+        "premierleague": "Premier_League",
+        "la_liga": "La_Liga",
+        "laliga": "La_Liga",
+        "serie_a": "Serie_A",
+        "seriea": "Serie_A",
+        "bundesliga": "Bundesliga",
+        "ligue_1": "Ligue_1",
+        "ligue1": "Ligue_1",
+    }
+    direct = mapping.get(normalized)
+    if direct:
+        return direct, {"requested": raw, "resolved": direct, "method": "direct_map", "confidence": 0.98}
+
+    candidates = []
+    base_dir = Path("sofascore_team_data")
+    if base_dir.exists():
+        for file_path in base_dir.glob("*_Team_Stats.xlsx"):
+            league_key = str(file_path.stem).replace("_Team_Stats", "")
+            if league_key:
+                candidates.append(league_key)
+
+    target = _normalize_text(raw)
+    for candidate in candidates:
+        cand_norm = _normalize_text(candidate.replace("_", " "))
+        if cand_norm == target:
+            return candidate, {"requested": raw, "resolved": candidate, "method": "file_exact", "confidence": 0.92}
+
+    best_candidate = None
+    best_score = -1.0
+    for candidate in candidates:
+        cand_norm = _normalize_text(candidate.replace("_", " "))
+        if target and (target in cand_norm or cand_norm in target):
+            score = 0.82
+        else:
+            left_tokens = set(target.split())
+            right_tokens = set(cand_norm.split())
+            if not left_tokens or not right_tokens:
+                score = 0.0
+            else:
+                score = len(left_tokens.intersection(right_tokens)) / max(len(left_tokens), len(right_tokens))
+        if score > best_score:
+            best_score = score
+            best_candidate = candidate
+
+    if best_candidate and best_score >= 0.55:
+        return best_candidate, {
+            "requested": raw,
+            "resolved": best_candidate,
+            "method": "token_overlap",
+            "confidence": round(_clip_scalar(best_score, 0.0, 0.9), 3),
+        }
+    return "All", {"requested": raw, "resolved": "All", "method": "fallback_all", "confidence": 0.35}
+
+
+def _resolve_demo_team_name(df, team_name, team_col="team_name"):
+    default = {
+        "requested": str(team_name or ""),
+        "resolved": str(team_name or ""),
+        "method": "input_fallback",
+        "confidence": 0.0,
+    }
+    if df is None or df.empty or team_col not in df.columns:
+        return default["resolved"], default
+
+    names = sorted({str(v).strip() for v in df[team_col].dropna().astype(str) if str(v).strip()})
+    if not names:
+        return default["resolved"], default
+
+    aliases = _team_aliases(team_name)
+    alias_norms = {_normalize_text(a) for a in aliases if a}
+    lookup = {name: _normalize_text(name) for name in names}
+
+    for name, name_norm in lookup.items():
+        if name_norm in alias_norms:
+            return name, {
+                "requested": str(team_name or ""),
+                "resolved": name,
+                "method": "exact_alias",
+                "confidence": 0.99,
+            }
+
+    best_name = None
+    best_score = -1.0
+    best_method = "token_overlap"
+    for name, name_norm in lookup.items():
+        score = 0.0
+        method = "token_overlap"
+        for alias in aliases:
+            alias_norm = _normalize_text(alias)
+            if not alias_norm:
+                continue
+            if alias_norm in name_norm or name_norm in alias_norm:
+                score = max(score, 0.84)
+                method = "substring"
+                continue
+            left_tokens = set(alias_norm.split())
+            right_tokens = set(name_norm.split())
+            if left_tokens and right_tokens:
+                overlap = len(left_tokens.intersection(right_tokens)) / max(len(left_tokens), len(right_tokens))
+                if overlap > score:
+                    score = overlap
+                    method = "token_overlap"
+        if score > best_score:
+            best_score = score
+            best_name = name
+            best_method = method
+
+    if best_name and best_score >= 0.50:
+        confidence = 0.90 if best_method == "substring" else _clip_scalar(best_score, 0.5, 0.85)
+        return best_name, {
+            "requested": str(team_name or ""),
+            "resolved": best_name,
+            "method": best_method,
+            "confidence": round(float(confidence), 3),
+        }
+
+    return default["resolved"], default
+
+
+def _demo_pick_numeric(row, candidates):
+    for key in candidates:
+        if key in row:
+            val = _to_number(row.get(key))
+            if val is not None:
+                return float(val), key
+    return None, None
+
+
+DEMO_UNIT_METRICS = {
+    "expected_goals": {
+        "target": "expected_goals",
+        "raw": ["expected_goals", "expectedgoals", "expected_goals_synthetic", "expectedgoalssynthetic"],
+        "per_match": ["expected_goals_per_match", "expected_goals_per_game", "expectedgoals_per_match", "expectedgoals_per_game"],
+        "per_90": ["expected_goals_per_90", "expectedgoals_per_90"],
+    },
+    "goalsconceded": {
+        "target": "goalsconceded",
+        "raw": ["goalsconceded", "goals_conceded"],
+        "per_match": ["goalsconceded_per_match", "goalsconceded_per_game", "goals_conceded_per_match", "goals_conceded_per_game"],
+        "per_90": ["goalsconceded_per_90", "goals_conceded_per_90"],
+    },
+    "shots": {
+        "target": "shots",
+        "raw": ["shots", "totalshots"],
+        "per_match": ["shots_per_match", "shots_per_game"],
+        "per_90": ["shots_per_90"],
+    },
+    "bigchances": {
+        "target": "bigchances",
+        "raw": ["bigchances", "big_chances"],
+        "per_match": ["bigchances_per_match", "bigchances_per_game", "big_chances_per_match", "big_chances_per_game"],
+        "per_90": ["bigchances_per_90", "big_chances_per_90"],
+    },
+    "penaltygoals": {
+        "target": "penaltygoals",
+        "raw": ["penaltygoals", "penalty_goals"],
+        "per_match": ["penaltygoals_per_match", "penaltygoals_per_game", "penalty_goals_per_match", "penalty_goals_per_game"],
+        "per_90": ["penaltygoals_per_90", "penalty_goals_per_90"],
+    },
+    "accuratepasses": {
+        "target": "accuratepasses",
+        "raw": ["accuratepasses", "accurate_passes"],
+        "per_match": ["accuratepasses_per_match", "accuratepasses_per_game", "accurate_passes_per_match", "accurate_passes_per_game"],
+        "per_90": ["accuratepasses_per_90", "accurate_passes_per_90"],
+    },
+}
+
+
+def _normalize_demo_metric_for_policy(row, cfg, unit_policy):
+    matches_played, _ = _demo_pick_numeric(row, ["matches_played", "matchesplayed", "matches"])
+    raw_val, raw_src = _demo_pick_numeric(row, cfg["raw"])
+    per_match_val, per_match_src = _demo_pick_numeric(row, cfg["per_match"])
+    per_90_val, per_90_src = _demo_pick_numeric(row, cfg["per_90"])
+    has_matches = matches_played is not None and matches_played > 0.0
+
+    if unit_policy == "raw":
+        if raw_val is not None:
+            return raw_val, raw_src, True
+        if per_match_val is not None and has_matches:
+            return per_match_val * matches_played, f"{per_match_src}->raw", False
+        if per_90_val is not None and has_matches:
+            return per_90_val * matches_played, f"{per_90_src}->raw", False
+        if per_match_val is not None:
+            return per_match_val, f"{per_match_src}_fallback", False
+        if per_90_val is not None:
+            return per_90_val, f"{per_90_src}_fallback", False
+        return None, "missing", False
+
+    if unit_policy == "per_90":
+        if per_90_val is not None:
+            return per_90_val, per_90_src, True
+        if per_match_val is not None:
+            return per_match_val, f"{per_match_src}->per_90", False
+        if raw_val is not None and has_matches:
+            return raw_val / max(matches_played, 1e-9), f"{raw_src}->per_90", False
+        if raw_val is not None:
+            return raw_val, f"{raw_src}_fallback", False
+        return None, "missing", False
+
+    # default: per_match
+    if per_match_val is not None:
+        return per_match_val, per_match_src, True
+    if per_90_val is not None:
+        return per_90_val, f"{per_90_src}->per_match", False
+    if raw_val is not None and has_matches:
+        return raw_val / max(matches_played, 1e-9), f"{raw_src}->per_match", False
+    if raw_val is not None:
+        return raw_val, f"{raw_src}_fallback", False
+    return None, "missing", False
+
+
+def _apply_demo_v2_unit_policy(df, unit_policy):
+    if df is None or df.empty:
+        return df, {"unit_policy": unit_policy, "rows": 0, "coverage": 0.0, "confidence": 0.0, "metrics": {}}
+
+    out = df.copy()
+    metrics_report = {}
+    resolved_slots = 0
+    direct_slots = 0
+    total_slots = max(1, len(out) * len(DEMO_UNIT_METRICS))
+
+    for _, cfg in DEMO_UNIT_METRICS.items():
+        target = cfg["target"]
+        values = []
+        source_counts = {}
+        resolved_rows = 0
+
+        for _, row in out.iterrows():
+            value, source, direct = _normalize_demo_metric_for_policy(row, cfg, unit_policy)
+            if value is None:
+                existing = _to_number(row.get(target))
+                if existing is not None:
+                    value = float(existing)
+                    source = "existing_fallback"
+            if value is None:
+                values.append(float("nan"))
+            else:
+                values.append(float(value))
+                resolved_rows += 1
+                resolved_slots += 1
+                if direct:
+                    direct_slots += 1
+            source_counts[source] = source_counts.get(source, 0) + 1
+
+        prev_col = pd.to_numeric(out[target], errors="coerce") if target in out.columns else None
+        series = pd.Series(values, index=out.index)
+        if prev_col is not None:
+            series = series.fillna(prev_col)
+        out[target] = series.fillna(0.0).astype(float)
+
+        metrics_report[target] = {
+            "resolved_rows": int(resolved_rows),
+            "total_rows": int(len(out)),
+            "source_counts": source_counts,
+        }
+
+    coverage = resolved_slots / float(total_slots)
+    direct_ratio = direct_slots / float(max(1, resolved_slots))
+    confidence = _clip_scalar(0.35 + (0.45 * coverage) + (0.20 * direct_ratio), 0.0, 1.0)
+    return out, {
+        "unit_policy": unit_policy,
+        "rows": int(len(out)),
+        "coverage": round(float(coverage), 4),
+        "confidence": round(float(confidence), 4),
+        "metrics": metrics_report,
+    }
+
+
+def _confidence_class_from_probs(home_prob, draw_prob, away_prob):
+    strongest = max(_safe_float(home_prob, 0.0), _safe_float(draw_prob, 0.0), _safe_float(away_prob, 0.0))
+    if strongest >= 55.0:
+        return "high"
+    if strongest >= 45.0:
+        return "medium"
+    return "low"
+
+
+def _run_demo_v2_shadow(home_team, away_team, league):
+    league_key, league_ctx = _resolve_demo_v2_league(league)
+    unit_policy, unit_policy_ctx = _resolve_demo_unit_policy()
+    adapter_context = {
+        "league_resolution": league_ctx,
+        "unit_policy": unit_policy_ctx,
+        "team_mapping": {},
+        "unit_report": {},
+        "source_confidence": 0.0,
+    }
+    try:
+        import numpy as np
+
+        from demo_model_v2.data_loader import DataLoader
+        from demo_model_v2.feature_engine import FeatureEngine
+        from demo_model_v2.match_log_loader import MatchLogLoader
+        from demo_model_v2.player_impact_engine import PlayerImpactEngine
+        from demo_model_v2.poisson_model import PoissonModel
+        from demo_model_v2.simulator import MatchSimulator
+    except Exception as ex:
+        return {
+            "enabled": False,
+            "status": "unavailable",
+            "reason": f"import_error: {ex}",
+            "league_used": league_key,
+            "adapter_context": adapter_context,
+        }
+
+    try:
+        loader = DataLoader("sofascore_team_data")
+        df_raw = loader.load_data(league_key)
+        if df_raw is None or df_raw.empty:
+            raise RuntimeError("empty_team_stats")
+        home_resolved, home_map_ctx = _resolve_demo_team_name(df_raw, home_team, team_col="team_name")
+        away_resolved, away_map_ctx = _resolve_demo_team_name(df_raw, away_team, team_col="team_name")
+        adapter_context["team_mapping"] = {"home": home_map_ctx, "away": away_map_ctx}
+
+        df_normalized, unit_report = _apply_demo_v2_unit_policy(df_raw, unit_policy)
+        adapter_context["unit_report"] = unit_report
+
+        engine = FeatureEngine()
+        df_processed = engine.calculate_feature_metrics(df_normalized)
+
+        log_loader = MatchLogLoader("Match Logs")
+        impact_engine = PlayerImpactEngine("sofaplayer")
+        home_tax = impact_engine.calculate_missing_tax(home_resolved, league_key, None)
+        away_tax = impact_engine.calculate_missing_tax(away_resolved, league_key, None)
+
+        home_ratings = engine.get_team_ratings(
+            df_processed,
+            home_resolved,
+            match_log_loader=log_loader,
+            venue="Home",
+            player_tax=home_tax,
+        )
+        away_ratings = engine.get_team_ratings(
+            df_processed,
+            away_resolved,
+            match_log_loader=log_loader,
+            venue="Away",
+            player_tax=away_tax,
+        )
+
+        model = PoissonModel()
+        lambda_home, lambda_away = model.predict_match_lambdas(
+            home_ratings,
+            away_ratings,
+            league_avg_home_goals=1.6,
+            league_avg_away_goals=1.2,
+        )
+        matrix = model.get_score_probability_matrix(lambda_home, lambda_away)
+        score_idx = np.unravel_index(np.argmax(matrix), matrix.shape)
+        most_likely_score = f"{int(score_idx[0])}-{int(score_idx[1])}"
+
+        p_home = float(np.tril(matrix, -1).sum() * 100.0)
+        p_draw = float(np.trace(matrix) * 100.0)
+        p_away = float(np.triu(matrix, 1).sum() * 100.0)
+
+        mc = MatchSimulator().run_monte_carlo(lambda_home, lambda_away, n_sims=10000)
+        source_confidence = _clip_scalar(
+            (0.50 * _safe_float(unit_report.get("confidence"), 0.0))
+            + (0.25 * _safe_float(home_map_ctx.get("confidence"), 0.0))
+            + (0.25 * _safe_float(away_map_ctx.get("confidence"), 0.0)),
+            0.0,
+            1.0,
+        )
+        adapter_context["source_confidence"] = round(float(source_confidence), 4)
+
+        return {
+            "enabled": True,
+            "status": "ok",
+            "model": "demo_model_v2",
+            "league_used": league_key,
+            "unit_policy_used": unit_policy,
+            "home_team_resolved": home_resolved,
+            "away_team_resolved": away_resolved,
+            "home_win_prob": round(p_home, 2),
+            "draw_prob": round(p_draw, 2),
+            "away_win_prob": round(p_away, 2),
+            "home_win_prob_mc": round(float(mc.get("home_win", 0.0) * 100.0), 2),
+            "draw_prob_mc": round(float(mc.get("draw", 0.0) * 100.0), 2),
+            "away_win_prob_mc": round(float(mc.get("away_win", 0.0) * 100.0), 2),
+            "expected_goals_home": round(float(lambda_home), 3),
+            "expected_goals_away": round(float(lambda_away), 3),
+            "most_likely_score": most_likely_score,
+            "home_rating_source": home_ratings.get("source"),
+            "away_rating_source": away_ratings.get("source"),
+            "confidence_class": _confidence_class_from_probs(p_home, p_draw, p_away),
+            "adapter_context": adapter_context,
+        }
+    except Exception as ex:
+        return {
+            "enabled": False,
+            "status": "failed",
+            "reason": str(ex),
+            "league_used": league_key,
+            "adapter_context": adapter_context,
+        }
+
+
+def _build_demo_v2_appendix_legacy(home, away, demo_v2, sim_v9=None):
+    section_title = "## ภาคผนวก: Demo Model v2 (Shadow)"
+    if not isinstance(demo_v2, dict):
+        return f"{section_title}\n\n- สถานะ: ไม่ได้รัน (ไม่มีข้อมูล demo_v2)"
+
+    if not demo_v2.get("enabled"):
+        reason = demo_v2.get("reason") or demo_v2.get("status") or "unknown"
+        league_used = demo_v2.get("league_used", "N/A")
+        return (
+            f"{section_title}\n\n"
+            f"- สถานะ: ไม่พร้อมใช้งาน\n"
+            f"- ลีกที่พยายามใช้: `{league_used}`\n"
+            f"- เหตุผล: `{reason}`"
+        )
+
+    delta_lines = []
+    if isinstance(sim_v9, dict):
+        try:
+            delta_lines = [
+                f"- Delta vs v9 (Home): {float(demo_v2.get('home_win_prob', 0.0)) - float(sim_v9.get('home_win_prob', 0.0)):+.2f}%",
+                f"- Delta vs v9 (Draw): {float(demo_v2.get('draw_prob', 0.0)) - float(sim_v9.get('draw_prob', 0.0)):+.2f}%",
+                f"- Delta vs v9 (Away): {float(demo_v2.get('away_win_prob', 0.0)) - float(sim_v9.get('away_win_prob', 0.0)):+.2f}%",
+                f"- Delta xG Home: {float(demo_v2.get('expected_goals_home', 0.0)) - float(sim_v9.get('expected_goals_home', 0.0)):+.3f}",
+                f"- Delta xG Away: {float(demo_v2.get('expected_goals_away', 0.0)) - float(sim_v9.get('expected_goals_away', 0.0)):+.3f}",
+            ]
+        except Exception:
+            delta_lines = []
+
+    lines = [
+        section_title,
+        "",
+        "- สถานะ: รันสำเร็จ",
+        f"- ลีกที่ใช้: `{demo_v2.get('league_used', 'N/A')}`",
+        f"- โมเดล: `{demo_v2.get('model', 'demo_model_v2')}`",
+        f"- ความน่าจะเป็น 1X2 (Poisson Matrix): {home} {demo_v2.get('home_win_prob')}% | Draw {demo_v2.get('draw_prob')}% | {away} {demo_v2.get('away_win_prob')}%",
+        f"- ความน่าจะเป็น 1X2 (Monte Carlo): {home} {demo_v2.get('home_win_prob_mc')}% | Draw {demo_v2.get('draw_prob_mc')}% | {away} {demo_v2.get('away_win_prob_mc')}%",
+        f"- xG: {home} {demo_v2.get('expected_goals_home')} | {away} {demo_v2.get('expected_goals_away')}",
+        f"- สกอร์ที่น่าจะเป็นที่สุด: {demo_v2.get('most_likely_score', 'N/A')}",
+        f"- Source Ratings: Home={demo_v2.get('home_rating_source', 'N/A')} | Away={demo_v2.get('away_rating_source', 'N/A')}",
+    ]
+    if delta_lines:
+        lines.append("- Comparison to v9:")
+        lines.extend(delta_lines)
+    return "\n".join(lines)
+
+
+def _demo_v2_to_sim_result(demo_v2, sim_v9=None):
+    if not isinstance(demo_v2, dict) or not demo_v2.get("enabled"):
+        return None
+
+    base = {
+        "model_version": "demo_v2",
+        "home_win_prob": float(_safe_float(demo_v2.get("home_win_prob"), 0.0)),
+        "draw_prob": float(_safe_float(demo_v2.get("draw_prob"), 0.0)),
+        "away_win_prob": float(_safe_float(demo_v2.get("away_win_prob"), 0.0)),
+        "expected_goals_home": float(_safe_float(demo_v2.get("expected_goals_home"), 1.2)),
+        "expected_goals_away": float(_safe_float(demo_v2.get("expected_goals_away"), 1.0)),
+        "most_likely_score": str(demo_v2.get("most_likely_score") or "1-1"),
+        "top3_scores": "",
+        "bonus_applied": "demo_model_v2_adapter",
+        "base_exp_home": float(_safe_float(demo_v2.get("expected_goals_home"), 1.2)),
+        "base_exp_away": float(_safe_float(demo_v2.get("expected_goals_away"), 1.0)),
+        "lineup_context": {},
+        "fatigue_context": {},
+        "progression_context": {},
+        "tactical_context": {"enabled": False, "regime": "unknown"},
+        "calibration_context": {},
+        "key_matchups": [],
+        "position_battles": [],
+        "math_winner_context": {},
+        "xg_input": {},
+    }
+    if isinstance(sim_v9, dict):
+        for key in [
+            "xg_input",
+            "lineup_context",
+            "fatigue_context",
+            "progression_context",
+            "tactical_context",
+            "calibration_context",
+            "key_matchups",
+            "position_battles",
+            "math_winner_context",
+        ]:
+            if key in sim_v9:
+                base[key] = sim_v9.get(key)
+    return base
+
+
+def _build_hybrid_sim(sim_v9, demo_v2):
+    if not isinstance(sim_v9, dict):
+        return None, {"enabled": False, "reason": "missing_v9"}
+    if not isinstance(demo_v2, dict) or not demo_v2.get("enabled"):
+        reason = "demo_v2_unavailable"
+        if isinstance(demo_v2, dict):
+            reason = str(demo_v2.get("reason") or demo_v2.get("status") or reason)
+        return None, {"enabled": False, "reason": reason}
+
+    demo_weight, weight_ctx = _resolve_hybrid_demo_weight()
+    v9_weight = 1.0 - demo_weight
+    v9_home = float(_safe_float(sim_v9.get("expected_goals_home"), 1.25))
+    v9_away = float(_safe_float(sim_v9.get("expected_goals_away"), 1.10))
+    d2_home = float(_safe_float(demo_v2.get("expected_goals_home"), v9_home))
+    d2_away = float(_safe_float(demo_v2.get("expected_goals_away"), v9_away))
+
+    blended_home_raw = (v9_weight * v9_home) + (demo_weight * d2_home)
+    blended_away_raw = (v9_weight * v9_away) + (demo_weight * d2_away)
+    blended_home = _clip_scalar(blended_home_raw, 0.25, 3.8)
+    blended_away = _clip_scalar(blended_away_raw, 0.25, 3.8)
+
+    summary = _poisson_summary(blended_home, blended_away, max_goals=10)
+    sim = dict(sim_v9)
+    sim.update(summary)
+    sim["model_version"] = "hybrid_v10"
+    sim["bonus_applied"] = f"{sim_v9.get('bonus_applied', 'v9')} | Hybrid blend v9={v9_weight:.2f} demo_v2={demo_weight:.2f}"
+    sim["base_exp_home"] = _safe_float(sim_v9.get("base_exp_home"), None)
+    sim["base_exp_away"] = _safe_float(sim_v9.get("base_exp_away"), None)
+
+    hybrid_ctx = {
+        "enabled": True,
+        "weights": {"v9": round(v9_weight, 4), "demo_v2": round(demo_weight, 4)},
+        "weights_context": weight_ctx,
+        "layers": [
+            {"layer": "v9_lambda", "home": round(v9_home, 4), "away": round(v9_away, 4)},
+            {"layer": "demo_v2_lambda", "home": round(d2_home, 4), "away": round(d2_away, 4)},
+            {"layer": "weighted_blend", "home": round(blended_home_raw, 4), "away": round(blended_away_raw, 4)},
+            {"layer": "clip_bounds", "min": 0.25, "max": 3.8, "home": round(blended_home, 4), "away": round(blended_away, 4)},
+        ],
+        "clipped": bool(abs(blended_home - blended_home_raw) > 1e-9 or abs(blended_away - blended_away_raw) > 1e-9),
+    }
+    sim["hybrid_context"] = hybrid_ctx
+    return sim, hybrid_ctx
+
+
+def _select_active_sim(model_core, sim_v9, demo_v2, sim_hybrid, model_core_env_ctx):
+    selected = dict(sim_v9 or {})
+    active_core = model_core
+    fallback_reason = None
+
+    if model_core == "demo_v2":
+        demo_sim = _demo_v2_to_sim_result(demo_v2, sim_v9=sim_v9)
+        if demo_sim is not None:
+            selected = demo_sim
+        else:
+            active_core = "v9"
+            fallback_reason = "demo_v2_unavailable_fallback_to_v9"
+    elif model_core == "hybrid":
+        if isinstance(sim_hybrid, dict):
+            selected = dict(sim_hybrid)
+        else:
+            active_core = "v9"
+            fallback_reason = "hybrid_unavailable_fallback_to_v9"
+
+    selected.setdefault("lineup_context", {})
+    selected.setdefault("fatigue_context", {})
+    selected.setdefault("progression_context", {})
+    selected.setdefault("tactical_context", {})
+    selected.setdefault("calibration_context", {})
+    selected.setdefault("key_matchups", [])
+    selected.setdefault("position_battles", [])
+    selected.setdefault("math_winner_context", {})
+    selected.setdefault("xg_input", {})
+    selected.setdefault("base_exp_home", _safe_float(selected.get("expected_goals_home"), None))
+    selected.setdefault("base_exp_away", _safe_float(selected.get("expected_goals_away"), None))
+
+    tactical_ctx = selected.get("tactical_context") if isinstance(selected.get("tactical_context"), dict) else {}
+    tactical_regime = str(tactical_ctx.get("regime") or "unknown")
+    confidence_class = _confidence_class_from_probs(
+        selected.get("home_win_prob"),
+        selected.get("draw_prob"),
+        selected.get("away_win_prob"),
+    )
+
+    model_core_context = {
+        "requested_core": model_core,
+        "active_core": active_core,
+        "fallback_reason": fallback_reason,
+        "env_resolution": model_core_env_ctx,
+        "demo_v2_available": bool(isinstance(demo_v2, dict) and demo_v2.get("enabled")),
+        "demo_v2_source_confidence": _safe_float(((demo_v2 or {}).get("adapter_context") or {}).get("source_confidence"), None),
+        "hybrid_enabled": bool(isinstance(sim_hybrid, dict)),
+        "hybrid_context": (sim_hybrid or {}).get("hybrid_context", {}) if isinstance(sim_hybrid, dict) else {},
+        "tactical_regime": tactical_regime,
+        "confidence_class": confidence_class,
+    }
+    selected["model_core_context"] = model_core_context
+    return selected, model_core_context
+
+
+def _model_snapshot_from_sim(sim):
+    if not isinstance(sim, dict):
+        return None
+    return {
+        "home_win_prob": float(_safe_float(sim.get("home_win_prob"), 0.0)),
+        "draw_prob": float(_safe_float(sim.get("draw_prob"), 0.0)),
+        "away_win_prob": float(_safe_float(sim.get("away_win_prob"), 0.0)),
+        "expected_goals_home": float(_safe_float(sim.get("expected_goals_home"), 0.0)),
+        "expected_goals_away": float(_safe_float(sim.get("expected_goals_away"), 0.0)),
+        "most_likely_score": str(sim.get("most_likely_score") or "N/A"),
+    }
+
+
+def _model_snapshot_from_demo(demo):
+    if not isinstance(demo, dict) or not demo.get("enabled"):
+        return None
+    return {
+        "home_win_prob": float(_safe_float(demo.get("home_win_prob"), 0.0)),
+        "draw_prob": float(_safe_float(demo.get("draw_prob"), 0.0)),
+        "away_win_prob": float(_safe_float(demo.get("away_win_prob"), 0.0)),
+        "expected_goals_home": float(_safe_float(demo.get("expected_goals_home"), 0.0)),
+        "expected_goals_away": float(_safe_float(demo.get("expected_goals_away"), 0.0)),
+        "most_likely_score": str(demo.get("most_likely_score") or "N/A"),
+    }
+
+
+def _format_model_snapshot_line(label, home, away, snapshot):
+    if not snapshot:
+        return f"- {label}: unavailable"
+    conf = _confidence_class_from_probs(
+        snapshot.get("home_win_prob"),
+        snapshot.get("draw_prob"),
+        snapshot.get("away_win_prob"),
+    )
+    return (
+        f"- {label}: {home} {snapshot['home_win_prob']:.2f}% | Draw {snapshot['draw_prob']:.2f}% | "
+        f"{away} {snapshot['away_win_prob']:.2f}% | "
+        f"xG {snapshot['expected_goals_home']:.3f}-{snapshot['expected_goals_away']:.3f} | "
+        f"Top score {snapshot['most_likely_score']} | confidence={conf}"
+    )
+
+
+def _format_delta_line(label, ref_snapshot, cand_snapshot):
+    if not ref_snapshot or not cand_snapshot:
+        return f"- Delta {label}: unavailable"
+    return (
+        f"- Delta {label}: 1X2(H/D/A)="
+        f"{cand_snapshot['home_win_prob'] - ref_snapshot['home_win_prob']:+.2f}/"
+        f"{cand_snapshot['draw_prob'] - ref_snapshot['draw_prob']:+.2f}/"
+        f"{cand_snapshot['away_win_prob'] - ref_snapshot['away_win_prob']:+.2f} "
+        f"| xG(H/A)="
+        f"{cand_snapshot['expected_goals_home'] - ref_snapshot['expected_goals_home']:+.3f}/"
+        f"{cand_snapshot['expected_goals_away'] - ref_snapshot['expected_goals_away']:+.3f}"
+    )
+
+
+def _build_model_comparison_appendix(home, away, sim_v9, demo_v2, sim_hybrid, model_core_context):
+    title = "## Appendix: Model Core Comparison (V10)"
+    active_core = str((model_core_context or {}).get("active_core") or "v9")
+    fallback_reason = (model_core_context or {}).get("fallback_reason")
+
+    snap_v9 = _model_snapshot_from_sim(sim_v9)
+    snap_demo = _model_snapshot_from_demo(demo_v2)
+    snap_hybrid = _model_snapshot_from_sim(sim_hybrid)
+
+    lines = [
+        title,
+        "",
+        f"- Active core: `{active_core}`",
+    ]
+    if fallback_reason:
+        lines.append(f"- Fallback reason: `{fallback_reason}`")
+
+    demo_conf = _safe_float(((demo_v2 or {}).get("adapter_context") or {}).get("source_confidence"), None)
+    if demo_conf is not None:
+        lines.append(f"- demo_v2 adapter source confidence: {demo_conf:.3f}")
+    lines.append(_format_model_snapshot_line("v9", home, away, snap_v9))
+    lines.append(_format_model_snapshot_line("demo_v2", home, away, snap_demo))
+    lines.append(_format_model_snapshot_line("hybrid", home, away, snap_hybrid))
+    lines.append(_format_delta_line("demo_v2 vs v9", snap_v9, snap_demo))
+    lines.append(_format_delta_line("hybrid vs v9", snap_v9, snap_hybrid))
+
+    if isinstance(demo_v2, dict) and not demo_v2.get("enabled"):
+        reason = demo_v2.get("reason") or demo_v2.get("status") or "unknown"
+        lines.append(f"- demo_v2 unavailable: `{reason}`")
+    return "\n".join(lines)
+
+
+def _build_demo_v2_appendix(home, away, demo_v2, sim_v9=None):
+    sim_hybrid, _ = _build_hybrid_sim(sim_v9 or {}, demo_v2)
+    model_core_context = {"active_core": "v9", "fallback_reason": None}
+    return _build_model_comparison_appendix(home, away, sim_v9, demo_v2, sim_hybrid, model_core_context)
+
+
+def _resolve_core_predictions(
+    home,
+    away,
+    stats_league,
+    home_sim_stats,
+    away_sim_stats,
+    home_prog,
+    away_prog,
+    context_text,
+    home_flow,
+    away_flow,
+):
+    model_core, model_core_env_ctx = _resolve_model_core(default_core="v9")
+    sim_v9 = _try_simulator(
+        home,
+        away,
+        stats_league,
+        home_sim_stats,
+        away_sim_stats,
+        home_prog,
+        away_prog,
+        context_text,
+        home_flow=home_flow,
+        away_flow=away_flow,
+    )
+    demo_v2_shadow = _run_demo_v2_shadow(home, away, stats_league)
+    sim_hybrid, hybrid_context = _build_hybrid_sim(sim_v9, demo_v2_shadow)
+    sim_selected, model_core_context = _select_active_sim(
+        model_core=model_core,
+        sim_v9=sim_v9,
+        demo_v2=demo_v2_shadow,
+        sim_hybrid=sim_hybrid,
+        model_core_env_ctx=model_core_env_ctx,
+    )
+    model_core_context["hybrid_context"] = hybrid_context
+    return {
+        "selected_sim": sim_selected,
+        "v9_sim": sim_v9,
+        "hybrid_sim": sim_hybrid,
+        "demo_v2_shadow": demo_v2_shadow,
+        "model_core_context": model_core_context,
+    }
 
 
 def _parse_args(argv):
@@ -1902,7 +2705,29 @@ def main():
 
     qc_flags, context_header = run_data_qc(home, away, league, context_text, home_league, away_league)
 
-    sim = _try_simulator(home, away, stats_league, home_sim_stats, away_sim_stats, home_prog, away_prog, context_text)
+    home_flow = get_game_flow_stats(home, league)
+    away_flow = get_game_flow_stats(away, league)
+    core_bundle = _resolve_core_predictions(
+        home=home,
+        away=away,
+        stats_league=stats_league,
+        home_sim_stats=home_sim_stats,
+        away_sim_stats=away_sim_stats,
+        home_prog=home_prog,
+        away_prog=away_prog,
+        context_text=context_text,
+        home_flow=home_flow,
+        away_flow=away_flow,
+    )
+    sim = core_bundle["selected_sim"]
+    sim_v9 = core_bundle["v9_sim"]
+    sim_hybrid = core_bundle["hybrid_sim"]
+    demo_v2_shadow = core_bundle["demo_v2_shadow"]
+    model_core_context = core_bundle["model_core_context"]
+    print(
+        f"[Info] Model core active: {model_core_context.get('active_core')} "
+        f"(requested={model_core_context.get('requested_core')})"
+    )
 
     result_1x2 = _pick_result_from_probs(sim["home_win_prob"], sim["draw_prob"], sim["away_win_prob"])
     score_unconditional = sim.get("most_likely_score", "1-1")
@@ -1932,8 +2757,6 @@ def main():
                 f"{target_score_analysis['current_probability']:.2f}% baseline probability."
             )
 
-    home_flow = get_game_flow_stats(home, league)
-    away_flow = get_game_flow_stats(away, league)
     home_squad = get_squad_stats(home, league)
     away_squad = get_squad_stats(away, league)
     home_opta = get_opta_team_stats(home, league)
@@ -2025,6 +2848,16 @@ def main():
         )
         ai_report, analysis_error = _generate_ai_report(prompt=prompt, api_key=gemini_key)
         if ai_report:
+            demo_appendix = _build_model_comparison_appendix(
+                home=home,
+                away=away,
+                sim_v9=sim_v9,
+                demo_v2=demo_v2_shadow,
+                sim_hybrid=sim_hybrid,
+                model_core_context=model_core_context,
+            )
+            if demo_appendix:
+                ai_report = ai_report.rstrip() + "\n\n---\n\n" + demo_appendix + "\n"
             os.makedirs("analyses", exist_ok=True)
             with open(analysis_file, "w", encoding="utf-8") as f:
                 f.write(ai_report)
@@ -2073,13 +2906,19 @@ def main():
         "Target_Score_Input": args.target_score,
         "Target_Score_Analysis": target_score_analysis,
         "Model_Version": sim.get("model_version", "unknown"),
+        "Model_Core": model_core_context.get("active_core", "v9"),
+        "Model_Core_Context": model_core_context,
         "QC_Flags": qc_flags,
         "Context_Header": context_header,
         "Bet_Data": bet_data,
         "Bet_Detail": bet_detail,
         "Progression_Data": {"home": home_prog, "away": away_prog},
+        "Flow_Data": {"home": home_flow, "away": away_flow},
         "Tactical_Scenarios": tactical_scenarios,
         "Calibration_Context": sim.get("calibration_context", {}),
+        "Simulator_Tactical_Context": sim.get("tactical_context", {}),
+        "Demo_v2_Shadow": demo_v2_shadow,
+        "Hybrid_Shadow": sim_hybrid if isinstance(sim_hybrid, dict) else None,
         "Team_Style_Snapshot": {
             "home": {
                 "ppda": _safe_float(home_ppda, None),

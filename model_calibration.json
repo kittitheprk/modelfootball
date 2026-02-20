@@ -344,6 +344,17 @@
     "notes": [
         "Residual = actual goals - expected goals from latest_prediction.",
         "If Expected_Goals_* missing, fallback uses Pred_Score as rough proxy.",
-        "Team scales are reliability-weighted and clipped to avoid overfitting."
-    ]
+        "Team scales are reliability-weighted and clipped to avoid overfitting.",
+        "Regime scales are estimated from Tactical_Regime history when available."
+    ],
+    "by_regime": {
+        "unknown": {
+            "n_matches": 0,
+            "weighted_home_goal_residual": 0.0,
+            "weighted_away_goal_residual": 0.0,
+            "home_scale": 1.0,
+            "away_scale": 1.0,
+            "reliability": 0.0
+        }
+    }
 }
